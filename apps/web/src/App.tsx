@@ -1,5 +1,5 @@
-import { CompaniesPage } from '@/pages/CompaniesPage';
+import { ApplicationsPage } from '@/features/applications';
 
 export function App() {
-  return <CompaniesPage />;
+  return <ApplicationsPage />;
 }

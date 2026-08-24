@@ -8,6 +8,13 @@
       "when": 1756000000000,
       "tag": "0000_create_company",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1756000001000,
+      "tag": "0001_create_application_and_alias",
+      "breakpoints": true
     }
   ]
 }
