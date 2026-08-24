@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "recompute": "tsx src/commands/recompute.ts"
+    "recompute": "tsx src/commands/recompute.ts",
+    "import:excel": "tsx src/commands/import-excel.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.2",
