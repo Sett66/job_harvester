@@ -67,3 +67,56 @@ export const event = sqliteTable('event', {
 
 export type EventRow = typeof event.$inferSelect;
 export type NewEventRow = typeof event.$inferInsert;
+
+export const interviewNote = sqliteTable('interview_note', {
+  id: text('id').primaryKey(),
+  applicationId: text('application_id')
+    .notNull()
+    .references(() => application.id),
+  eventId: text('event_id'),
+  mdPath: text('md_path').notNull(),
+  rawDump: text('raw_dump').notNull(),
+  summary: text('summary'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export const question = sqliteTable('question', {
+  id: text('id').primaryKey(),
+  text: text('text').notNull(),
+  category: text('category'),
+  applicationId: text('application_id').references(() => application.id),
+  companyId: text('company_id').references(() => company.id),
+  interviewNoteId: text('interview_note_id').references(() => interviewNote.id),
+  round: integer('round'),
+  interviewType: text('interview_type'),
+  askedAt: integer('asked_at', { mode: 'timestamp_ms' }),
+  myAnswer: text('my_answer'),
+  referenceAnswer: text('reference_answer'),
+  selfRating: integer('self_rating'),
+  status: text('status').notNull(),
+  source: text('source').notNull(),
+  importKey: text('import_key'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export const importCandidate = sqliteTable('import_candidate', {
+  id: text('id').primaryKey(),
+  text: text('text').notNull(),
+  category: text('category'),
+  companyId: text('company_id').references(() => company.id),
+  applicationId: text('application_id').references(() => application.id),
+  round: integer('round'),
+  interviewType: text('interview_type'),
+  sourceFile: text('source_file').notNull(),
+  importKey: text('import_key').notNull(),
+  status: text('status').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export type InterviewNoteRow = typeof interviewNote.$inferSelect;
+export type NewInterviewNoteRow = typeof interviewNote.$inferInsert;
+export type QuestionRow = typeof question.$inferSelect;
+export type NewQuestionRow = typeof question.$inferInsert;
+export type ImportCandidateRow = typeof importCandidate.$inferSelect;
+export type NewImportCandidateRow = typeof importCandidate.$inferInsert;
