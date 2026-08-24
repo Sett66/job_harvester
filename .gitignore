@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.turbo/
+*.log
+.env
+.env.*
+
+# 运行时数据目录 —— 代码仓库与个人数据严格分离
+data/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

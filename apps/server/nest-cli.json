@@ -1,0 +1,12 @@
+{
+  "sourceRoot": "src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "assets": [
+      {
+        "include": "drizzle/**/*",
+        "outDir": "dist"
+      }
+    ]
+  }
+}
