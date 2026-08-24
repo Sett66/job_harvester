@@ -5,19 +5,34 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  BALL_LABELS,
+  compareTodayTodos,
+  computeStaleness,
   createApplicationSchema,
   createCompanyAliasSchema,
+  getBoardColumnKey,
+  isDeadlinePriorityTodo,
+  STAGE_LABELS,
   updateApplicationSchema,
   type Application,
   type ApplicationGrouped,
+  type BoardApplicationItem,
+  type BoardColumn,
+  type BoardColumnKey,
+  type BoardCompanyGroup,
+  type BoardView,
   type CompanyAlias,
   type CreateApplicationInput,
   type CreateApplicationResponse,
   type CreateCompanyAliasInput,
+  type StaleApplicationItem,
+  type TodayTodoItem,
+  type TodayView,
   type UpdateApplicationInput,
 } from '@job-harvester/shared';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
+import { getStalenessThresholds } from '../../config/staleness.config';
 import { DATABASE, type AppDatabase } from '../../db/database.provider';
 import { application, companyAlias, event } from '../../db/schema';
 import { CompaniesService } from '../companies/companies.service';
@@ -77,6 +92,146 @@ export class ApplicationsService {
     return [...grouped.values()].filter(
       (group) => group.applications.length > 0,
     );
+  }
+
+  async findBoard(): Promise<BoardView> {
+    const thresholds = getStalenessThresholds();
+    const companies = await this.companiesService.findAll();
+    const companyMap = new Map(
+      companies.map((company) => [company.id, company]),
+    );
+    const rows = await this.db
+      .select()
+      .from(application)
+      .orderBy(asc(application.updatedAt));
+
+    const columnGroups = new Map<BoardColumnKey, Map<string, BoardApplicationItem[]>>(
+      [
+        ['ME', new Map()],
+        ['THEM', new Map()],
+        ['OFFER', new Map()],
+        ['CLOSED', new Map()],
+      ],
+    );
+
+    for (const row of rows) {
+      const app = this.toApplication(row);
+      const company = companyMap.get(app.companyId);
+      if (!company) {
+        continue;
+      }
+
+      const columnKey = getBoardColumnKey(app);
+      const item: BoardApplicationItem = {
+        ...app,
+        staleness: computeStaleness(
+          {
+            ball: app.ball ?? null,
+            stage: app.stage,
+            lastEventAt: app.lastEventAt,
+          },
+          { thresholds },
+        ),
+      };
+      const groups = columnGroups.get(columnKey)!;
+      const existing = groups.get(company.id) ?? [];
+      existing.push(item);
+      groups.set(company.id, existing);
+    }
+
+    const columnLabels: Record<BoardColumnKey, string> = {
+      ME: BALL_LABELS.ME,
+      THEM: BALL_LABELS.THEM,
+      OFFER: STAGE_LABELS.OFFER,
+      CLOSED: STAGE_LABELS.CLOSED,
+    };
+
+    const columns: BoardColumn[] = (['ME', 'THEM', 'OFFER', 'CLOSED'] as const).map(
+      (key) => {
+        const groups: BoardCompanyGroup[] = [...columnGroups.get(key)!.entries()]
+          .map(([companyId, applications]) => ({
+            company: companyMap.get(companyId)!,
+            applications,
+          }))
+          .sort((left, right) =>
+            left.company.canonicalName.localeCompare(
+              right.company.canonicalName,
+              'zh-CN',
+            ),
+          );
+
+        return {
+          key,
+          label: columnLabels[key],
+          groups,
+        };
+      },
+    );
+
+    return { columns, thresholds };
+  }
+
+  async findToday(): Promise<TodayView> {
+    const thresholds = getStalenessThresholds();
+    const companies = await this.companiesService.findAll();
+    const companyNames = new Map(
+      companies.map((company) => [company.id, company.canonicalName]),
+    );
+    const rows = await this.db
+      .select()
+      .from(application)
+      .orderBy(asc(application.updatedAt));
+
+    const todos: TodayTodoItem[] = [];
+    const staleItems: StaleApplicationItem[] = [];
+
+    for (const row of rows) {
+      const app = this.toApplication(row);
+      const companyName = companyNames.get(app.companyId) ?? '未知公司';
+
+      if (
+        app.ball === 'ME' &&
+        app.stage !== 'CLOSED' &&
+        app.stage !== 'OFFER'
+      ) {
+        todos.push({
+          ...app,
+          companyName,
+          isDeadlinePriority: isDeadlinePriorityTodo(app),
+        });
+      }
+
+      const staleness = computeStaleness(
+        {
+          ball: app.ball ?? null,
+          stage: app.stage,
+          lastEventAt: app.lastEventAt,
+        },
+        { thresholds },
+      );
+      if (staleness?.isStale) {
+        staleItems.push({
+          ...app,
+          companyName,
+          staleness,
+        });
+      }
+    }
+
+    todos.sort(compareTodayTodos);
+    staleItems.sort(
+      (left, right) => right.staleness.staleDays - left.staleness.staleDays,
+    );
+
+    return { todos, staleItems, thresholds };
+  }
+
+  async archiveAsAssumedDead(id: string): Promise<Application> {
+    return this.update(id, {
+      stage: 'CLOSED',
+      ball: null,
+      outcome: 'ASSUMED_DEAD',
+    });
   }
 
   async create(input: unknown): Promise<CreateApplicationResponse> {

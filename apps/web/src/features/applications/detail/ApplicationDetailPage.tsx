@@ -48,6 +48,8 @@ export function ApplicationDetailPage({
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['applications'] });
+    void queryClient.invalidateQueries({ queryKey: ['board'] });
+    void queryClient.invalidateQueries({ queryKey: ['today'] });
     void queryClient.invalidateQueries({
       queryKey: ['applications', applicationId],
     });
