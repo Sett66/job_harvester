@@ -67,3 +67,53 @@ export const event = sqliteTable('event', {
 
 export type EventRow = typeof event.$inferSelect;
 export type NewEventRow = typeof event.$inferInsert;
+
+export const email = sqliteTable('email', {
+  id: text('id').primaryKey(),
+  messageId: text('message_id').notNull().unique(),
+  folder: text('folder').notNull(),
+  fromName: text('from_name'),
+  fromAddress: text('from_address').notNull(),
+  subject: text('subject').notNull(),
+  receivedAt: integer('received_at', { mode: 'timestamp_ms' }).notNull(),
+  bodyText: text('body_text').notNull(),
+  bodyHtmlPath: text('body_html_path'),
+  rawPath: text('raw_path'),
+  hasAttachment: integer('has_attachment', { mode: 'boolean' }).notNull().default(false),
+  inReplyTo: text('in_reply_to'),
+  referencesHeader: text('references_header'),
+  screenResult: text('screen_result').notNull().default('SUSPECT'),
+  parseStatus: text('parse_status').notNull().default('PENDING'),
+  parsedAt: integer('parsed_at', { mode: 'timestamp_ms' }),
+  confidence: integer('confidence'),
+  linkedApplicationId: text('linked_application_id').references(() => application.id),
+  reviewStatus: text('review_status').notNull().default('NEEDS_REVIEW'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export const emailExtraction = sqliteTable('email_extraction', {
+  id: text('id').primaryKey(),
+  emailId: text('email_id')
+    .notNull()
+    .references(() => email.id),
+  eventType: text('event_type').notNull(),
+  companyName: text('company_name').notNull(),
+  businessUnit: text('business_unit'),
+  position: text('position'),
+  occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+  deadlineAt: integer('deadline_at', { mode: 'timestamp_ms' }),
+  confidence: integer('confidence').notNull(),
+  suggestedApplicationId: text('suggested_application_id').references(
+    () => application.id,
+  ),
+  matchMethod: text('match_method').notNull(),
+  rawJson: text('raw_json').notNull(),
+  eventCreated: integer('event_created', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export type EmailRow = typeof email.$inferSelect;
+export type NewEmailRow = typeof email.$inferInsert;
+export type EmailExtractionRow = typeof emailExtraction.$inferSelect;
+export type NewEmailExtractionRow = typeof emailExtraction.$inferInsert;
