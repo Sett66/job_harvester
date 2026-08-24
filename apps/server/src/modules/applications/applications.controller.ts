@@ -37,6 +37,11 @@ export class ApplicationsController {
     return this.applicationsService.create(body);
   }
 
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<Application> {
+    return this.applicationsService.findById(id);
+  }
+
   @Patch(':id')
   update(
     @Param('id') id: string,

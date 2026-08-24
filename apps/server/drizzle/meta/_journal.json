@@ -15,6 +15,13 @@
       "when": 1756000001000,
       "tag": "0001_create_application_and_alias",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1756000002000,
+      "tag": "0002_create_event",
+      "breakpoints": true
     }
   ]
 }

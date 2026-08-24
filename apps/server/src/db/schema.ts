@@ -46,3 +46,24 @@ export type ApplicationRow = typeof application.$inferSelect;
 export type NewApplicationRow = typeof application.$inferInsert;
 export type CompanyAliasRow = typeof companyAlias.$inferSelect;
 export type NewCompanyAliasRow = typeof companyAlias.$inferInsert;
+
+export const event = sqliteTable('event', {
+  id: text('id').primaryKey(),
+  applicationId: text('application_id')
+    .notNull()
+    .references(() => application.id),
+  type: text('type').notNull(),
+  occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+  source: text('source').notNull(),
+  emailId: text('email_id'),
+  round: integer('round'),
+  interviewType: text('interview_type'),
+  deadlineAt: integer('deadline_at', { mode: 'timestamp_ms' }),
+  scheduledAt: integer('scheduled_at', { mode: 'timestamp_ms' }),
+  rawText: text('raw_text'),
+  payload: text('payload'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export type EventRow = typeof event.$inferSelect;
+export type NewEventRow = typeof event.$inferInsert;

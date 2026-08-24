@@ -19,6 +19,14 @@ export async function fetchApplicationsGrouped(): Promise<ApplicationGrouped[]> 
   return response.json() as Promise<ApplicationGrouped[]>;
 }
 
+export async function fetchApplication(id: string): Promise<Application> {
+  const response = await fetch(`${API_BASE}/applications/${id}`);
+  if (!response.ok) {
+    throw new Error('加载投递详情失败');
+  }
+  return response.json() as Promise<Application>;
+}
+
 export async function createApplication(
   input: CreateApplicationInput,
 ): Promise<CreateApplicationResponse> {

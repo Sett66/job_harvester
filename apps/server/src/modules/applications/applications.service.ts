@@ -19,7 +19,7 @@ import {
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { DATABASE, type AppDatabase } from '../../db/database.provider';
-import { application, companyAlias } from '../../db/schema';
+import { application, companyAlias, event } from '../../db/schema';
 import { CompaniesService } from '../companies/companies.service';
 
 function normalizeOptionalText(value?: string | null): string | null {
@@ -36,6 +36,19 @@ export class ApplicationsService {
     @Inject(DATABASE) private readonly db: AppDatabase,
     private readonly companiesService: CompaniesService,
   ) {}
+
+  async findById(id: string): Promise<Application> {
+    const rows = await this.db
+      .select()
+      .from(application)
+      .where(eq(application.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException('投递记录不存在');
+    }
+    return this.toApplication(row);
+  }
 
   async findGrouped(): Promise<ApplicationGrouped[]> {
     const companies = await this.companiesService.findAll();
@@ -205,6 +218,7 @@ export class ApplicationsService {
       throw new NotFoundException('投递记录不存在');
     }
 
+    await this.db.delete(event).where(eq(event.applicationId, id));
     await this.db.delete(application).where(eq(application.id, id));
   }
 

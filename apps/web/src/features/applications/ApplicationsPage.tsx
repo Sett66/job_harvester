@@ -6,6 +6,7 @@ import {
 } from '@job-harvester/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { ApplicationDetailPage } from '@/features/applications/detail/ApplicationDetailPage';
 import {
   createApplication,
   deleteApplication,
@@ -38,6 +39,10 @@ function formatOptionalDate(value?: Date | string | null): string {
 
 export function ApplicationsPage() {
   const queryClient = useQueryClient();
+  const [selectedApplication, setSelectedApplication] = useState<{
+    id: string;
+    companyName: string;
+  } | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [editingApplication, setEditingApplication] =
@@ -101,6 +106,16 @@ export function ApplicationsPage() {
       id: editingApplication.id,
       input,
     });
+  }
+
+  if (selectedApplication) {
+    return (
+      <ApplicationDetailPage
+        applicationId={selectedApplication.id}
+        companyName={selectedApplication.companyName}
+        onBack={() => setSelectedApplication(null)}
+      />
+    );
   }
 
   return (
@@ -200,6 +215,18 @@ export function ApplicationsPage() {
                           ) : null}
                         </div>
                         <div className="flex shrink-0 gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              setSelectedApplication({
+                                id: application.id,
+                                companyName: group.company.canonicalName,
+                              })
+                            }
+                          >
+                            详情
+                          </Button>
                           <Button
                             variant="secondary"
                             size="sm"
