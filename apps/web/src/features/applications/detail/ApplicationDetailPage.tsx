@@ -89,7 +89,7 @@ export function ApplicationDetailPage({
   const application = applicationQuery.data;
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-8">
+    <div className="mx-auto flex min-h-full max-w-4xl flex-col gap-8 p-8">
       {feedback ? (
         <Toast
           key={feedback.eventId}

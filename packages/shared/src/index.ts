@@ -118,3 +118,22 @@ export {
   type LlmDebugResponse,
   type LlmPromptInfo,
 } from './schemas/llm';
+
+export {
+  emailAttachmentSchema,
+  emailDetailSchema,
+  emailListItemSchema,
+  emailListResponseSchema,
+  mailStatusSchema,
+  mailSyncErrorSchema,
+  mailSyncResultSchema,
+  mailSyncStateItemSchema,
+  type EmailAttachment,
+  type EmailDetail,
+  type EmailListItem,
+  type EmailListResponse,
+  type MailStatus,
+  type MailSyncError,
+  type MailSyncResult,
+  type MailSyncStateItem,
+} from './schemas/email';

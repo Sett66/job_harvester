@@ -112,7 +112,7 @@ export function ApplicationsPage({
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 p-8">
+    <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-8 p-8">
       <header className="flex items-start justify-between gap-4">
         <div>
           {onBack ? (

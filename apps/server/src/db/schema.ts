@@ -117,3 +117,26 @@ export type EmailRow = typeof email.$inferSelect;
 export type NewEmailRow = typeof email.$inferInsert;
 export type EmailExtractionRow = typeof emailExtraction.$inferSelect;
 export type NewEmailExtractionRow = typeof emailExtraction.$inferInsert;
+
+export const attachment = sqliteTable('attachment', {
+  id: text('id').primaryKey(),
+  emailId: text('email_id')
+    .notNull()
+    .references(() => email.id),
+  filename: text('filename').notNull(),
+  path: text('path').notNull(),
+  size: integer('size').notNull(),
+  mime: text('mime'),
+});
+
+export const syncState = sqliteTable('sync_state', {
+  id: text('id').primaryKey(),
+  folder: text('folder').notNull().unique(),
+  lastUid: integer('last_uid').notNull().default(0),
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp_ms' }),
+});
+
+export type AttachmentRow = typeof attachment.$inferSelect;
+export type NewAttachmentRow = typeof attachment.$inferInsert;
+export type SyncStateRow = typeof syncState.$inferSelect;
+export type NewSyncStateRow = typeof syncState.$inferInsert;

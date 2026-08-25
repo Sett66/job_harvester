@@ -33,7 +33,7 @@ export function DashboardPage({
   );
 
   return (
-    <div className="mx-auto flex h-full min-h-0 max-w-[1400px] flex-col gap-4 overflow-hidden px-6 py-4 lg:px-8">
+    <div className="mx-auto flex h-full min-h-0 max-w-[1400px] flex-col gap-4 overflow-hidden overscroll-none px-6 py-4 lg:px-8">
       <header className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">秋招进度</h1>
@@ -47,20 +47,18 @@ export function DashboardPage({
       </header>
 
       {isLoading ? (
-        <p className="text-muted-foreground">加载中…</p>
+        <p className="shrink-0 text-muted-foreground">加载中…</p>
       ) : isError ? (
-        <p className="text-destructive">加载失败，请确认后端已启动</p>
+        <p className="shrink-0 text-destructive">加载失败，请确认后端已启动</p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="min-h-0 w-full basis-[40%] shrink-0 grow-0">
-            <TodayPanel
-              todos={todayQuery.data?.todos ?? []}
-              staleItems={todayQuery.data?.staleItems ?? []}
-              onOpenApplication={onOpenApplication}
-            />
-          </div>
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] gap-4 overflow-hidden">
+          <TodayPanel
+            todos={todayQuery.data?.todos ?? []}
+            staleItems={todayQuery.data?.staleItems ?? []}
+            onOpenApplication={onOpenApplication}
+          />
 
-          <section className="flex min-h-0 flex-1 flex-col gap-3">
+          <section className="flex min-h-0 flex-col gap-3 overflow-hidden">
             <div className="flex shrink-0 items-center justify-between gap-4">
               <h2 className="text-lg font-semibold">看板</h2>
               {todayQuery.data ? (
@@ -71,24 +69,26 @@ export function DashboardPage({
               ) : null}
             </div>
 
-            {isBoardEmpty ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed px-6">
-                <div className="py-8 text-center">
-                  <p className="text-lg font-medium">还没有投递记录</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    去「全部投递」新增第一条，看板会自动按球在谁手里分栏
-                  </p>
-                  <Button className="mt-4" onClick={onOpenApplicationsList}>
-                    新增投递
-                  </Button>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {isBoardEmpty ? (
+                <div className="flex h-full items-center justify-center rounded-xl border border-dashed px-6">
+                  <div className="py-8 text-center">
+                    <p className="text-lg font-medium">还没有投递记录</p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      去「全部投递」新增第一条，看板会自动按球在谁手里分栏
+                    </p>
+                    <Button className="mt-4" onClick={onOpenApplicationsList}>
+                      新增投递
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <BoardView
-                columns={columns}
-                onOpenApplication={onOpenApplication}
-              />
-            )}
+              ) : (
+                <BoardView
+                  columns={columns}
+                  onOpenApplication={onOpenApplication}
+                />
+              )}
+            </div>
           </section>
         </div>
       )}

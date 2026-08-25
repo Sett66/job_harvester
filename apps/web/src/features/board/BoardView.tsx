@@ -127,7 +127,7 @@ export function BoardView({
   onOpenApplication: (applicationId: string, companyName: string) => void;
 }) {
   return (
-    <div className="flex h-full min-h-0 gap-4 overflow-x-auto">
+    <div className="flex h-full min-h-0 gap-4 overflow-x-auto overflow-y-hidden">
       {columns.map((column) => (
         <BoardColumnView
           key={column.key}

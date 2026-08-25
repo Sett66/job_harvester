@@ -29,6 +29,13 @@
       "when": 1756000004000,
       "tag": "0004_create_email_and_extraction",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1756000005000,
+      "tag": "0005_create_attachment_and_sync_state",
+      "breakpoints": true
     }
   ]
 }

@@ -105,7 +105,7 @@ export function TodayPanel({
   });
 
   return (
-    <div className="grid h-full min-h-0 gap-4 overflow-hidden lg:grid-cols-2">
+    <div className="grid h-full min-h-0 grid-rows-2 gap-4 overflow-hidden lg:grid-cols-2 lg:grid-rows-1">
       <Card className="flex min-h-0 flex-col overflow-hidden">
         <CardHeader className="shrink-0 px-4 py-3">
           <CardTitle>今日待办</CardTitle>
