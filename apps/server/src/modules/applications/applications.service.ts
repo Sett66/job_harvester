@@ -12,6 +12,7 @@ import {
   createCompanyAliasSchema,
   getBoardColumnKey,
   isDeadlinePriorityTodo,
+  isOpenTodayTodo,
   STAGE_LABELS,
   updateApplicationSchema,
   type Application,
@@ -30,7 +31,7 @@ import {
   type TodayView,
   type UpdateApplicationInput,
 } from '@job-harvester/shared';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { getStalenessThresholds } from '../../config/staleness.config';
 import { DATABASE, type AppDatabase } from '../../db/database.provider';
@@ -43,6 +44,20 @@ function normalizeOptionalText(value?: string | null): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function compareApplicationsByLastEventAtDesc(
+  left: Pick<Application, 'lastEventAt'>,
+  right: Pick<Application, 'lastEventAt'>,
+): number {
+  return right.lastEventAt.getTime() - left.lastEventAt.getTime();
+}
+
+function latestLastEventAt(apps: Pick<Application, 'lastEventAt'>[]): number {
+  return apps.reduce(
+    (latest, app) => Math.max(latest, app.lastEventAt.getTime()),
+    0,
+  );
 }
 
 @Injectable()
@@ -70,7 +85,7 @@ export class ApplicationsService {
     const applications = await this.db
       .select()
       .from(application)
-      .orderBy(asc(application.createdAt));
+      .orderBy(desc(application.lastEventAt));
 
     const grouped = new Map<string, ApplicationGrouped>();
 
@@ -89,9 +104,19 @@ export class ApplicationsService {
       group.applications.push(this.toApplication(row));
     }
 
-    return [...grouped.values()].filter(
-      (group) => group.applications.length > 0,
-    );
+    return [...grouped.values()]
+      .filter((group) => group.applications.length > 0)
+      .map((group) => ({
+        ...group,
+        applications: [...group.applications].sort(
+          compareApplicationsByLastEventAtDesc,
+        ),
+      }))
+      .sort(
+        (left, right) =>
+          latestLastEventAt(right.applications) -
+          latestLastEventAt(left.applications),
+      );
   }
 
   async findBoard(): Promise<BoardView> {
@@ -103,7 +128,7 @@ export class ApplicationsService {
     const rows = await this.db
       .select()
       .from(application)
-      .orderBy(asc(application.updatedAt));
+      .orderBy(desc(application.lastEventAt));
 
     const columnGroups = new Map<BoardColumnKey, Map<string, BoardApplicationItem[]>>(
       [
@@ -151,13 +176,12 @@ export class ApplicationsService {
         const groups: BoardCompanyGroup[] = [...columnGroups.get(key)!.entries()]
           .map(([companyId, applications]) => ({
             company: companyMap.get(companyId)!,
-            applications,
+            applications: [...applications].sort(compareApplicationsByLastEventAtDesc),
           }))
-          .sort((left, right) =>
-            left.company.canonicalName.localeCompare(
-              right.company.canonicalName,
-              'zh-CN',
-            ),
+          .sort(
+            (left, right) =>
+              latestLastEventAt(right.applications) -
+              latestLastEventAt(left.applications),
           );
 
         return {
@@ -189,11 +213,7 @@ export class ApplicationsService {
       const app = this.toApplication(row);
       const companyName = companyNames.get(app.companyId) ?? '未知公司';
 
-      if (
-        app.ball === 'ME' &&
-        app.stage !== 'CLOSED' &&
-        app.stage !== 'OFFER'
-      ) {
+      if (isOpenTodayTodo(app)) {
         todos.push({
           ...app,
           companyName,

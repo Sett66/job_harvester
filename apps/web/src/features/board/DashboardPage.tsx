@@ -23,13 +23,21 @@ export function DashboardPage({
 
   const isLoading = boardQuery.isLoading || todayQuery.isLoading;
   const isError = boardQuery.isError || todayQuery.isError;
+  const columns = boardQuery.data?.columns ?? [];
+  const isBoardEmpty = columns.every(
+    (column) =>
+      column.groups.reduce(
+        (count, group) => count + group.applications.length,
+        0,
+      ) === 0,
+  );
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1400px] flex-col gap-8 p-6 lg:p-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+    <div className="mx-auto flex h-full min-h-0 max-w-[1400px] flex-col gap-4 overflow-hidden px-6 py-4 lg:px-8">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">秋招进度</h1>
-          <p className="mt-2 text-muted-foreground">
+          <h1 className="text-2xl font-bold tracking-tight">秋招进度</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             按「球在谁手里」看全局，左侧待办优先处理截止事项
           </p>
         </div>
@@ -43,16 +51,18 @@ export function DashboardPage({
       ) : isError ? (
         <p className="text-destructive">加载失败，请确认后端已启动</p>
       ) : (
-        <>
-          <TodayPanel
-            todos={todayQuery.data?.todos ?? []}
-            staleItems={todayQuery.data?.staleItems ?? []}
-            onOpenApplication={onOpenApplication}
-          />
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="min-h-0 w-full basis-[40%] shrink-0 grow-0">
+            <TodayPanel
+              todos={todayQuery.data?.todos ?? []}
+              staleItems={todayQuery.data?.staleItems ?? []}
+              onOpenApplication={onOpenApplication}
+            />
+          </div>
 
-          <section className="space-y-4">
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-semibold">看板</h2>
+          <section className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex shrink-0 items-center justify-between gap-4">
+              <h2 className="text-lg font-semibold">看板</h2>
               {todayQuery.data ? (
                 <p className="text-sm text-muted-foreground">
                   沉寂阈值：默认 {todayQuery.data.thresholds.defaultDays} 天 ·
@@ -61,30 +71,26 @@ export function DashboardPage({
               ) : null}
             </div>
 
-            {(boardQuery.data?.columns ?? []).every(
-              (column) =>
-                column.groups.reduce(
-                  (count, group) => count + group.applications.length,
-                  0,
-                ) === 0,
-            ) ? (
-              <div className="rounded-xl border border-dashed px-6 py-16 text-center">
-                <p className="text-lg font-medium">还没有投递记录</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  去「全部投递」新增第一条，看板会自动按球在谁手里分栏
-                </p>
-                <Button className="mt-4" onClick={onOpenApplicationsList}>
-                  新增投递
-                </Button>
+            {isBoardEmpty ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-dashed px-6">
+                <div className="py-8 text-center">
+                  <p className="text-lg font-medium">还没有投递记录</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    去「全部投递」新增第一条，看板会自动按球在谁手里分栏
+                  </p>
+                  <Button className="mt-4" onClick={onOpenApplicationsList}>
+                    新增投递
+                  </Button>
+                </div>
               </div>
             ) : (
               <BoardView
-                columns={boardQuery.data?.columns ?? []}
+                columns={columns}
                 onOpenApplication={onOpenApplication}
               />
             )}
           </section>
-        </>
+        </div>
       )}
     </div>
   );

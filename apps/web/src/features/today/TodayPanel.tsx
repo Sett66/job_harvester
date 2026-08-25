@@ -105,15 +105,15 @@ export function TodayPanel({
   });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
+    <div className="grid h-full min-h-0 gap-4 overflow-hidden lg:grid-cols-2">
+      <Card className="flex min-h-0 flex-col overflow-hidden">
+        <CardHeader className="shrink-0 px-4 py-3">
           <CardTitle>今日待办</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
           {todos.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">
-              暂无待办，球不在你这边
+              暂无未截止的待办
             </p>
           ) : (
             todos.map((item) => (
@@ -129,11 +129,11 @@ export function TodayPanel({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
+      <Card className="flex min-h-0 flex-col overflow-hidden">
+        <CardHeader className="shrink-0 px-4 py-3">
           <CardTitle>沉寂预警</CardTitle>
         </CardHeader>
-        <CardContent className="max-h-[360px] space-y-2 overflow-y-auto">
+        <CardContent className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 pb-4">
           {staleItems.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">
               暂无长期无响应的记录

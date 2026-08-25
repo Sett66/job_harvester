@@ -3,7 +3,9 @@ import {
   compareTodayTodos,
   computeStaleness,
   getStalenessThresholdDays,
+  isDeadlineOverdue,
   isDeadlinePriorityTodo,
+  isOpenTodayTodo,
 } from './staleness';
 
 function d(value: string): Date {
@@ -119,5 +121,84 @@ describe('compareTodayTodos', () => {
     };
 
     expect(compareTodayTodos(sooner, later)).toBeLessThan(0);
+  });
+});
+
+describe('isDeadlineOverdue / isOpenTodayTodo', () => {
+  const now = new Date(2026, 7, 25, 15, 30, 0);
+
+  it('treats a deadline on a previous local calendar day as overdue', () => {
+    expect(isDeadlineOverdue(new Date(2026, 7, 24, 23, 59, 0), now)).toBe(true);
+    expect(
+      isOpenTodayTodo(
+        {
+          ball: 'ME',
+          stage: 'INTERVIEW',
+          nextDeadlineAt: new Date(2026, 7, 24, 10, 0, 0),
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('keeps a deadline on today even if the clock time has passed', () => {
+    expect(isDeadlineOverdue(new Date(2026, 7, 25, 9, 0, 0), now)).toBe(false);
+    expect(
+      isOpenTodayTodo(
+        {
+          ball: 'ME',
+          stage: 'INTERVIEW',
+          nextDeadlineAt: new Date(2026, 7, 25, 9, 0, 0),
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('includes records with no deadline in today todos', () => {
+    expect(isDeadlineOverdue(null, now)).toBe(false);
+    expect(
+      isOpenTodayTodo(
+        { ball: 'ME', stage: 'INTERVIEW', nextDeadlineAt: null },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('includes a future local calendar day in today todos', () => {
+    expect(isDeadlineOverdue(new Date(2026, 7, 26, 9, 0, 0), now)).toBe(false);
+    expect(
+      isOpenTodayTodo(
+        {
+          ball: 'ME',
+          stage: 'WRITTEN_EXAM',
+          nextDeadlineAt: new Date(2026, 7, 26, 9, 0, 0),
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it('excludes CLOSED / OFFER and non-ME balls from today todos', () => {
+    expect(
+      isOpenTodayTodo(
+        {
+          ball: 'ME',
+          stage: 'CLOSED',
+          nextDeadlineAt: new Date(2026, 7, 26, 10, 0, 0),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isOpenTodayTodo(
+        {
+          ball: 'THEM',
+          stage: 'INTERVIEW',
+          nextDeadlineAt: new Date(2026, 7, 26, 10, 0, 0),
+        },
+        now,
+      ),
+    ).toBe(false);
   });
 });

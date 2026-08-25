@@ -1,4 +1,5 @@
 import {
+  isDeadlineOverdue,
   type BoardApplicationItem,
   type BoardColumn,
   STAGE_LABELS,
@@ -10,24 +11,39 @@ function ApplicationCard({
   companyName,
   onOpen,
   showStaleBadge = false,
+  showOverdueBadge = false,
 }: {
   application: BoardApplicationItem;
   companyName: string;
   onOpen: () => void;
   showStaleBadge?: boolean;
+  showOverdueBadge?: boolean;
 }) {
   const isStale = showStaleBadge && application.staleness?.isStale;
+  const isOverdue =
+    showOverdueBadge && isDeadlineOverdue(application.nextDeadlineAt);
 
   return (
     <button
       type="button"
       onClick={onOpen}
       className={`w-full rounded-md border px-3 py-2 text-left transition-colors hover:bg-accent/40 ${
-        isStale ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/20' : 'bg-background'
+        isStale
+          ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/20'
+          : isOverdue
+            ? 'border-red-300 bg-red-50/70 dark:bg-red-950/20'
+            : 'bg-background'
       }`}
     >
-      <div className="truncate text-sm font-medium">
-        {application.businessUnit || '（无业务线）'} · {application.batch}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 truncate text-sm font-medium">
+          {application.businessUnit || '（无业务线）'} · {application.batch}
+        </div>
+        {isOverdue ? (
+          <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950 dark:text-red-300">
+            已逾期
+          </span>
+        ) : null}
       </div>
       <div className="mt-1 truncate text-xs text-muted-foreground">
         {STAGE_LABELS[application.stage]}
@@ -60,7 +76,7 @@ function BoardColumnView({
 
   return (
     <section className="flex min-h-0 min-w-[260px] flex-1 flex-col rounded-xl border bg-muted/20">
-      <header className="flex items-center justify-between border-b px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between border-b px-4 py-3">
         <h2 className="text-sm font-semibold">{column.label}</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
           {totalCount}
@@ -85,6 +101,7 @@ function BoardColumnView({
                     application={application}
                     companyName={group.company.canonicalName}
                     showStaleBadge={column.key === 'THEM'}
+                    showOverdueBadge={column.key === 'ME'}
                     onOpen={() =>
                       onOpenApplication(
                         application.id,
@@ -110,7 +127,7 @@ export function BoardView({
   onOpenApplication: (applicationId: string, companyName: string) => void;
 }) {
   return (
-    <div className="flex min-h-[420px] gap-4 overflow-x-auto pb-2">
+    <div className="flex h-full min-h-0 gap-4 overflow-x-auto">
       {columns.map((column) => (
         <BoardColumnView
           key={column.key}

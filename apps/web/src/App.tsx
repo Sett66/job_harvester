@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { ApplicationsPage } from '@/features/applications';
 import { ApplicationDetailPage } from '@/features/applications/detail/ApplicationDetailPage';
 import { DashboardPage } from '@/features/board';
@@ -42,8 +42,12 @@ export function App() {
   }
 
   return (
-    <div>
-      <nav className="border-b bg-background">
+    <div
+      className={
+        tab === 'dashboard' ? 'flex h-screen flex-col overflow-hidden' : undefined
+      }
+    >
+      <nav className="shrink-0 border-b bg-background">
         <div className="mx-auto flex max-w-[1400px] gap-2 p-4">
           <Button
             variant={tab === 'dashboard' ? 'default' : 'secondary'}
@@ -60,10 +64,12 @@ export function App() {
         </div>
       </nav>
       {tab === 'dashboard' ? (
-        <DashboardPage
-          onOpenApplication={(id, name) => openApplication(id, name, 'dashboard')}
-          onOpenApplicationsList={() => setTab('applications')}
-        />
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <DashboardPage
+            onOpenApplication={(id, name) => openApplication(id, name, 'dashboard')}
+            onOpenApplicationsList={() => setTab('applications')}
+          />
+        </div>
       ) : (
         <ApplicationsPage
           onBack={() => setTab('dashboard')}

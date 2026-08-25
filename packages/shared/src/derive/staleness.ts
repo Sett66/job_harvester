@@ -57,6 +57,45 @@ export function computeStaleness(
   };
 }
 
+function toDate(value: Date | string | null | undefined): Date | null {
+  if (value == null) {
+    return null;
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date;
+}
+
+function toLocalDayStart(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+export function isDeadlineOverdue(
+  deadline: Date | string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  const deadlineDate = toDate(deadline);
+  if (deadlineDate == null) {
+    return false;
+  }
+  return toLocalDayStart(deadlineDate) < toLocalDayStart(now);
+}
+
+export function isOpenTodayTodo(
+  app: Pick<Application, 'ball' | 'stage' | 'nextDeadlineAt'>,
+  now: Date = new Date(),
+): boolean {
+  if (app.ball !== 'ME') {
+    return false;
+  }
+  if (app.stage === 'CLOSED' || app.stage === 'OFFER') {
+    return false;
+  }
+  return !isDeadlineOverdue(app.nextDeadlineAt, now);
+}
+
 export function isDeadlinePriorityTodo(
   app: Pick<Application, 'stage' | 'nextDeadlineAt'>,
 ): boolean {
