@@ -83,3 +83,12 @@ export const mailStatusSchema = z.object({
 });
 
 export type MailStatus = z.infer<typeof mailStatusSchema>;
+
+export const mailScreenStatsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  irrelevant: z.number().int().nonnegative(),
+  suspect: z.number().int().nonnegative(),
+  relevant: z.number().int().nonnegative(),
+});
+
+export type MailScreenStats = z.infer<typeof mailScreenStatsSchema>;

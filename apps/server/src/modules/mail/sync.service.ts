@@ -10,6 +10,7 @@ import {
   type EmailListResponse,
   type MailStatus,
   type MailSyncResult,
+  type ScreenResult,
 } from '@job-harvester/shared';
 import { desc, eq, sql } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,16 +65,22 @@ export class MailSyncService {
   async listEmails(options?: {
     limit?: number;
     offset?: number;
+    screenResult?: ScreenResult;
   }): Promise<EmailListResponse> {
     const limit = clampInt(options?.limit, 50, 1, 200);
     const offset = clampInt(options?.offset, 0, 0, Number.MAX_SAFE_INTEGER);
+    const whereClause = options?.screenResult
+      ? eq(email.screenResult, options.screenResult)
+      : undefined;
 
     const [countRow] = await this.db
       .select({ value: sql<number>`count(*)` })
-      .from(email);
+      .from(email)
+      .where(whereClause);
     const rows = await this.db
       .select()
       .from(email)
+      .where(whereClause)
       .orderBy(desc(email.receivedAt))
       .limit(limit)
       .offset(offset);

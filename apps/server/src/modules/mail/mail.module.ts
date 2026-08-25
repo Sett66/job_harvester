@@ -6,6 +6,7 @@ import {
 } from './credentials';
 import { ImapflowMailboxConnector, MAILBOX_CONNECTOR } from './imap.client';
 import { MailController } from './mail.controller';
+import { ScreenService } from './screen.service';
 import { MailSyncService } from './sync.service';
 
 @Module({
@@ -13,6 +14,7 @@ import { MailSyncService } from './sync.service';
   controllers: [MailController],
   providers: [
     MailSyncService,
+    ScreenService,
     {
       provide: MAIL_CREDENTIALS_STORE,
       useFactory: createKeytarCredentialsStore,
@@ -22,6 +24,6 @@ import { MailSyncService } from './sync.service';
       useClass: ImapflowMailboxConnector,
     },
   ],
-  exports: [MailSyncService],
+  exports: [MailSyncService, ScreenService],
 })
 export class MailModule {}

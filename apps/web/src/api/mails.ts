@@ -1,8 +1,10 @@
 import type {
   EmailDetail,
   EmailListResponse,
+  MailScreenStats,
   MailStatus,
   MailSyncResult,
+  ScreenResult,
 } from '@job-harvester/shared';
 
 const API_BASE = '/api';
@@ -18,6 +20,7 @@ async function readJson<T>(response: Response, fallbackMessage: string): Promise
 export async function fetchMails(options?: {
   limit?: number;
   offset?: number;
+  screenResult?: ScreenResult;
 }): Promise<EmailListResponse> {
   const params = new URLSearchParams();
   if (options?.limit !== undefined) {
@@ -26,9 +29,17 @@ export async function fetchMails(options?: {
   if (options?.offset !== undefined) {
     params.set('offset', String(options.offset));
   }
+  if (options?.screenResult) {
+    params.set('screenResult', options.screenResult);
+  }
   const query = params.toString();
   const response = await fetch(`${API_BASE}/mails${query ? `?${query}` : ''}`);
   return readJson<EmailListResponse>(response, '加载邮件列表失败');
+}
+
+export async function fetchMailScreenStats(): Promise<MailScreenStats> {
+  const response = await fetch(`${API_BASE}/mails/screen-stats`);
+  return readJson<MailScreenStats>(response, '加载粗筛统计失败');
 }
 
 export async function fetchMail(id: string): Promise<EmailDetail> {
