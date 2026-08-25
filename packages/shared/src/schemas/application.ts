@@ -209,3 +209,62 @@ export const createApplicationResponseSchema = z.object({
 export type CreateApplicationResponse = z.infer<
   typeof createApplicationResponseSchema
 >;
+
+const stalenessResultSchema = z.object({
+  isStale: z.boolean(),
+  staleDays: z.number().int().min(0),
+  thresholdDays: z.number().int().min(1),
+});
+
+export const boardApplicationItemSchema = applicationSchema.extend({
+  staleness: stalenessResultSchema.nullable(),
+});
+
+export type BoardApplicationItem = z.infer<typeof boardApplicationItemSchema>;
+
+export const boardCompanyGroupSchema = z.object({
+  company: applicationGroupedSchema.shape.company,
+  applications: z.array(boardApplicationItemSchema),
+});
+
+export type BoardCompanyGroup = z.infer<typeof boardCompanyGroupSchema>;
+
+export const boardColumnSchema = z.object({
+  key: z.enum(['ME', 'THEM', 'OFFER', 'CLOSED']),
+  label: z.string(),
+  groups: z.array(boardCompanyGroupSchema),
+});
+
+export type BoardColumn = z.infer<typeof boardColumnSchema>;
+
+export const boardViewSchema = z.object({
+  columns: z.array(boardColumnSchema),
+  thresholds: z.object({
+    defaultDays: z.number().int().min(1),
+    afterInterviewDays: z.number().int().min(1),
+  }),
+});
+
+export type BoardView = z.infer<typeof boardViewSchema>;
+
+export const todayTodoItemSchema = applicationSchema.extend({
+  companyName: z.string(),
+  isDeadlinePriority: z.boolean(),
+});
+
+export type TodayTodoItem = z.infer<typeof todayTodoItemSchema>;
+
+export const staleApplicationItemSchema = applicationSchema.extend({
+  companyName: z.string(),
+  staleness: stalenessResultSchema,
+});
+
+export type StaleApplicationItem = z.infer<typeof staleApplicationItemSchema>;
+
+export const todayViewSchema = z.object({
+  todos: z.array(todayTodoItemSchema),
+  staleItems: z.array(staleApplicationItemSchema),
+  thresholds: boardViewSchema.shape.thresholds,
+});
+
+export type TodayView = z.infer<typeof todayViewSchema>;

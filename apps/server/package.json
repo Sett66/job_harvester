@@ -11,7 +11,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "recompute": "tsx src/commands/recompute.ts",
-    "reextract": "tsx src/commands/reextract.ts"
+    "reextract": "tsx src/commands/reextract.ts",
+    "import:excel": "tsx src/commands/import-excel.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.2",
