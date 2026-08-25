@@ -12,10 +12,12 @@ import {
 import {
   type Application,
   type ApplicationGrouped,
+  type BoardView,
   type CompanyAlias,
   type CreateApplicationInput,
   type CreateApplicationResponse,
   type CreateCompanyAliasInput,
+  type TodayView,
   type UpdateApplicationInput,
 } from '@job-harvester/shared';
 import { ApplicationsService } from './applications.service';
@@ -27,6 +29,16 @@ export class ApplicationsController {
   @Get()
   findGrouped(): Promise<ApplicationGrouped[]> {
     return this.applicationsService.findGrouped();
+  }
+
+  @Get('board')
+  findBoard(): Promise<BoardView> {
+    return this.applicationsService.findBoard();
+  }
+
+  @Get('today')
+  findToday(): Promise<TodayView> {
+    return this.applicationsService.findToday();
   }
 
   @Post()
@@ -48,6 +60,12 @@ export class ApplicationsController {
     @Body() body: UpdateApplicationInput,
   ): Promise<Application> {
     return this.applicationsService.update(id, body);
+  }
+
+  @Post(':id/archive-stale')
+  @HttpCode(HttpStatus.OK)
+  archiveStale(@Param('id') id: string): Promise<Application> {
+    return this.applicationsService.archiveAsAssumedDead(id);
   }
 
   @Delete(':id')

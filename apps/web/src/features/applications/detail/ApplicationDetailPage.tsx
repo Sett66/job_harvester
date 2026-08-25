@@ -1,8 +1,10 @@
 import {
   BALL_LABELS,
+  EVENT_TYPE_LABELS,
   STAGE_LABELS,
 } from '@job-harvester/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { fetchApplication } from '@/api/applications';
 import { createEvent, deleteEvent, fetchEvents } from '@/api/events';
 import { Button } from '@/components/ui/button';
@@ -12,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Toast } from '@/components/ui/toast';
 import { EventForm, EventTimeline } from './EventTimeline';
 
 function formatDate(value?: Date | string | null): string {
@@ -22,7 +25,7 @@ function formatDate(value?: Date | string | null): string {
   if (Number.isNaN(date.getTime())) {
     return '—';
   }
-  return date.toLocaleString('zh-CN');
+  return date.toLocaleDateString('zh-CN');
 }
 
 export function ApplicationDetailPage({
@@ -35,6 +38,10 @@ export function ApplicationDetailPage({
   onBack: () => void;
 }) {
   const queryClient = useQueryClient();
+  const [feedback, setFeedback] = useState<{
+    eventId: string;
+    label: string;
+  } | null>(null);
 
   const applicationQuery = useQuery({
     queryKey: ['applications', applicationId],
@@ -48,6 +55,8 @@ export function ApplicationDetailPage({
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['applications'] });
+    void queryClient.invalidateQueries({ queryKey: ['board'] });
+    void queryClient.invalidateQueries({ queryKey: ['today'] });
     void queryClient.invalidateQueries({
       queryKey: ['applications', applicationId],
     });
@@ -67,10 +76,28 @@ export function ApplicationDetailPage({
     onSuccess: invalidate,
   });
 
+  useEffect(() => {
+    if (!feedback) {
+      return;
+    }
+    const node = document.getElementById(`event-${feedback.eventId}`);
+    if (node) {
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [feedback, eventsQuery.data]);
+
   const application = applicationQuery.data;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col gap-8 p-8">
+      {feedback ? (
+        <Toast
+          key={feedback.eventId}
+          message={`已添加「${feedback.label}」`}
+          onDismiss={() => setFeedback(null)}
+        />
+      ) : null}
+
       <header className="flex items-start justify-between gap-4">
         <div>
           <Button variant="secondary" onClick={onBack}>
@@ -113,7 +140,14 @@ export function ApplicationDetailPage({
         <CardContent>
           <EventForm
             onSubmit={async (input) => {
-              await createMutation.mutateAsync(input);
+              const result = await createMutation.mutateAsync(input);
+              await queryClient.invalidateQueries({
+                queryKey: ['applications', applicationId, 'events'],
+              });
+              setFeedback({
+                eventId: result.event.id,
+                label: EVENT_TYPE_LABELS[result.event.type],
+              });
             }}
             isSubmitting={createMutation.isPending}
           />
@@ -130,6 +164,7 @@ export function ApplicationDetailPage({
           ) : (
             <EventTimeline
               events={eventsQuery.data ?? []}
+              highlightedEventId={feedback?.eventId}
               onDelete={(eventId) => deleteMutation.mutate(eventId)}
             />
           )}

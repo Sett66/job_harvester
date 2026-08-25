@@ -15,9 +15,11 @@ import {
 import type { Company } from '@job-harvester/shared';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import { DateInput } from '@/components/ui/date-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { parseLocalDate, toDateInputValue } from '@/lib/format';
 
 export type ApplicationFormValues = {
   companyId?: string;
@@ -53,17 +55,6 @@ const defaultValues: ApplicationFormValues = {
   note: '',
 };
 
-function toDateInputValue(value?: Date | string | null): string {
-  if (!value) {
-    return '';
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-  return date.toISOString().slice(0, 10);
-}
-
 function parseOptionalDate(value?: string): Date | null | undefined {
   if (value == null) {
     return undefined;
@@ -72,7 +63,7 @@ function parseOptionalDate(value?: string): Date | null | undefined {
   if (!trimmed) {
     return null;
   }
-  return new Date(`${trimmed}T00:00:00`);
+  return parseLocalDate(trimmed);
 }
 
 export type ApplicationFormProps = {
@@ -270,14 +261,13 @@ export function ApplicationForm({
 
       <div className="grid gap-2">
         <Label htmlFor="appliedAt">投递日期</Label>
-        <Input
+        <DateInput
           id="appliedAt"
-          type="date"
           value={form.appliedAt ?? ''}
-          onChange={(event) =>
+          onChange={(appliedAt) =>
             setForm((current) => ({
               ...current,
-              appliedAt: event.target.value,
+              appliedAt,
             }))
           }
         />

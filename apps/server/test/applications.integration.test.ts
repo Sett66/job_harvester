@@ -146,6 +146,132 @@ describe('Applications API (integration)', () => {
     expect(deleted.statusCode).toBe(204);
   });
 
+  it('keeps overdue ME records on the board but out of today todos', async () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(10, 0, 0, 0);
+
+    const todayMorning = new Date();
+    todayMorning.setHours(8, 0, 0, 0);
+
+    const overdue = await app.inject({
+      method: 'POST',
+      url: '/api/applications',
+      payload: {
+        companyName: '逾期测司',
+        businessUnit: '过期',
+        batch: '春招',
+        stage: 'INTERVIEW',
+        ball: 'ME',
+        nextDeadlineAt: yesterday.toISOString(),
+      },
+    });
+    expect(overdue.statusCode).toBe(201);
+    const overdueId = overdue.json().application.id;
+
+    const dueToday = await app.inject({
+      method: 'POST',
+      url: '/api/applications',
+      payload: {
+        companyName: '今日测司',
+        businessUnit: '今天',
+        batch: '秋招',
+        stage: 'ASSESSMENT',
+        ball: 'ME',
+        nextDeadlineAt: todayMorning.toISOString(),
+      },
+    });
+    expect(dueToday.statusCode).toBe(201);
+    const dueTodayId = dueToday.json().application.id;
+
+    const noDeadline = await app.inject({
+      method: 'POST',
+      url: '/api/applications',
+      payload: {
+        companyName: '无截止测司',
+        batch: '秋招',
+        stage: 'INTERVIEW',
+        ball: 'ME',
+      },
+    });
+    expect(noDeadline.statusCode).toBe(201);
+    const noDeadlineId = noDeadline.json().application.id;
+
+    const today = await app.inject({
+      method: 'GET',
+      url: '/api/applications/today',
+    });
+    expect(today.statusCode).toBe(200);
+    const todoIds = today.json().todos.map((item: { id: string }) => item.id);
+    expect(todoIds).not.toContain(overdueId);
+    expect(todoIds).toContain(dueTodayId);
+    expect(todoIds).toContain(noDeadlineId);
+
+    const board = await app.inject({
+      method: 'GET',
+      url: '/api/applications/board',
+    });
+    expect(board.statusCode).toBe(200);
+    const meIds = board
+      .json()
+      .columns.find((column: { key: string }) => column.key === 'ME')
+      .groups.flatMap((group: { applications: { id: string }[] }) =>
+        group.applications.map((application: { id: string }) => application.id),
+      );
+    expect(meIds).toContain(overdueId);
+    expect(meIds).toContain(dueTodayId);
+  });
+
+  it('orders grouped applications by last event time, not edit time', async () => {
+    const older = await app.inject({
+      method: 'POST',
+      url: '/api/applications',
+      payload: {
+        companyName: '排序测司A',
+        batch: '批次1',
+        stage: 'APPLIED',
+      },
+    });
+    expect(older.statusCode).toBe(201);
+    const olderId = older.json().application.id;
+
+    const newer = await app.inject({
+      method: 'POST',
+      url: '/api/applications',
+      payload: {
+        companyName: '排序测司B',
+        batch: '批次1',
+        stage: 'APPLIED',
+      },
+    });
+    expect(newer.statusCode).toBe(201);
+    const newerId = newer.json().application.id;
+
+    const progress = await app.inject({
+      method: 'POST',
+      url: `/api/applications/${olderId}/events`,
+      payload: {
+        type: 'EXAM_INVITE',
+        occurredAt: new Date().toISOString(),
+        source: 'MANUAL',
+        deadlineAt: new Date(Date.now() + 86400000).toISOString(),
+      },
+    });
+    expect(progress.statusCode).toBe(201);
+
+    const grouped = await app.inject({
+      method: 'GET',
+      url: '/api/applications',
+    });
+    expect(grouped.statusCode).toBe(200);
+    const ids = grouped
+      .json()
+      .flatMap((group: { applications: { id: string }[] }) =>
+        group.applications.map((application) => application.id),
+      );
+    expect(ids.indexOf(olderId)).toBeLessThan(ids.indexOf(newerId));
+  });
+
   it('supports manual company alias maintenance', async () => {
     const alias = await app.inject({
       method: 'POST',
