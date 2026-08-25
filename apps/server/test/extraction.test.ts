@@ -3,7 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { createDatabase } from '../src/db/database.provider';
 import { application, company, email, event } from '../src/db/schema';
 import { ExtractionService } from '../src/modules/extraction/extraction.service';
-import { LlmService } from '../src/modules/llm/llm.service';
+import {
+  LlmService,
+  type LlmChatClient,
+} from '../src/modules/llm/llm.service';
 import { ApplicationsService } from '../src/modules/applications/applications.service';
 import { ApplicationStateService } from '../src/modules/applications/application-state.service';
 import { CompaniesService } from '../src/modules/companies/companies.service';
@@ -15,7 +18,21 @@ function buildExtractionService(db: ReturnType<typeof createDatabase>) {
   const applicationStateService = new ApplicationStateService(db as never);
   const eventsService = new EventsService(db as never, applicationStateService);
   const applicationsService = new ApplicationsService(db as never, companiesService);
-  const llmService = new LlmService();
+  const llmClient: LlmChatClient = {
+    complete: async () => ({
+      content: JSON.stringify({
+        companyName: '字节跳动',
+        businessUnit: '豆包',
+        position: '后端开发',
+        eventType: 'EXAM_INVITE',
+        occurredAt: new Date().toISOString(),
+        deadlineAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        confidence: 0.92,
+      }),
+      usage: { promptTokens: 10, completionTokens: 20 },
+    }),
+  };
+  const llmService = new LlmService(llmClient);
   return new ExtractionService(
     db as never,
     llmService,

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { getLlmEnv } from '../config/env.schema';
 import { createDatabase } from '../db/database.provider';
 import { ExtractionService } from '../modules/extraction/extraction.service';
 import { LlmService } from '../modules/llm/llm.service';
@@ -9,6 +10,7 @@ import { EventsService } from '../modules/events/events.service';
 import { countEvents } from '../modules/extraction/merge-application';
 
 async function main() {
+  getLlmEnv();
   const dbPath =
     process.env.DATABASE_PATH ??
     path.resolve(process.cwd(), '../../data/app.db');

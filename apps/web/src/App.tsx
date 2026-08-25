@@ -2,10 +2,11 @@
 import { ApplicationsPage } from '@/features/applications';
 import { ApplicationDetailPage } from '@/features/applications/detail/ApplicationDetailPage';
 import { DashboardPage } from '@/features/board';
+import { LlmDebugPage } from '@/features/llm-debug';
 import { ReviewQueuePage } from '@/features/review-queue';
 import { Button } from '@/components/ui/button';
 
-type Tab = 'dashboard' | 'applications' | 'review-queue';
+type Tab = 'dashboard' | 'applications' | 'review-queue' | 'llm-debug';
 
 type DetailView = {
   applicationId: string;
@@ -68,6 +69,12 @@ export function App() {
           >
             确认队列
           </Button>
+          <Button
+            variant={tab === 'llm-debug' ? 'default' : 'secondary'}
+            onClick={() => setTab('llm-debug')}
+          >
+            LLM 调试
+          </Button>
         </div>
       </nav>
       {tab === 'dashboard' ? (
@@ -84,8 +91,10 @@ export function App() {
             openApplication(id, name, 'applications')
           }
         />
-      ) : (
+      ) : tab === 'review-queue' ? (
         <ReviewQueuePage />
+      ) : (
+        <LlmDebugPage />
       )}
     </div>
   );

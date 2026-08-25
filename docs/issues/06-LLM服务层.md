@@ -7,7 +7,7 @@
 | **Blocked by** | [JH-01](./01-项目骨架.md)                     |
 | **Blocks**     | JH-09, JH-10                                  |
 | **估时**       | 1 天                                          |
-| **状态**       | ⬜ 未开始                                      |
+| **状态**       | ✅ 已完成                                      |
 
 ---
 
@@ -77,8 +77,9 @@
 | ----------------------------------------------- | --------------------------------- |
 | `apps/server/src/modules/llm/llm.module.ts`     | 新建                              |
 | `apps/server/src/modules/llm/llm.service.ts`    | 新建（调用 + 校验 + 重试 + 日志） |
+| `apps/server/src/modules/llm/llm.controller.ts` | 新建（调试 API + 日志查询）       |
 | `apps/server/src/modules/llm/redact.ts`         | 新建（脱敏，需单测）              |
-| `apps/server/src/modules/llm/prompts/`          | 新建（prompt 模板目录）           |
+| `apps/server/src/modules/llm/prompts/`          | 新建（prompt 模板目录 + 测试 prompt） |
 | `apps/server/src/config/env.schema.ts`          | 扩展（`LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`）|
 | `.env.example`                                  | 扩展（注释说明，不含真实 key）    |
 | `apps/web/src/features/llm-debug/`              | 新建（调试页面）                  |
@@ -89,14 +90,14 @@
 
 ## 6. Acceptance criteria
 
-- [ ] 能用一个测试 prompt 调通 DeepSeek 并返回符合 Zod schema 的结构化 JSON
-- [ ] Zod 校验失败时会自动重试一次
-- [ ] 重试后仍失败时返回失败结果而非抛异常
-- [ ] 脱敏对手机号、身份证号、银行卡号生效，有单元测试覆盖
-- [ ] 脱敏不会影响公司名、岗位名的抽取
-- [ ] 调用日志可查询，包含 token 数和耗时
-- [ ] 通过修改配置能切换到 Qwen，代码无需改动
-- [ ] 有一个调试页面可以输入任意文本查看结构化结果
+- [x] 能用一个测试 prompt 调通 DeepSeek 并返回符合 Zod schema 的结构化 JSON
+- [x] Zod 校验失败时会自动重试一次
+- [x] 重试后仍失败时返回失败结果而非抛异常
+- [x] 脱敏对手机号、身份证号、银行卡号生效，有单元测试覆盖
+- [x] 脱敏不会影响公司名、岗位名的抽取
+- [x] 调用日志可查询，包含 token 数和耗时
+- [x] 通过修改配置能切换到 Qwen，代码无需改动
+- [x] 有一个调试页面可以输入任意文本查看结构化结果
 
 ---
 

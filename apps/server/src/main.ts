@@ -6,8 +6,10 @@ import {
 import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { AppModule } from './app.module';
+import { getLlmEnv } from './config/env.schema';
 
 async function bootstrap() {
+  getLlmEnv();
   const isProduction = process.env.NODE_ENV === 'production';
 
   const app = await NestFactory.create<NestFastifyApplication>(
