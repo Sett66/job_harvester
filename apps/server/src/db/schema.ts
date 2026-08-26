@@ -68,55 +68,76 @@ export const event = sqliteTable('event', {
 export type EventRow = typeof event.$inferSelect;
 export type NewEventRow = typeof event.$inferInsert;
 
-export const interviewNote = sqliteTable('interview_note', {
+export const email = sqliteTable('email', {
   id: text('id').primaryKey(),
-  applicationId: text('application_id')
-    .notNull()
-    .references(() => application.id),
-  eventId: text('event_id'),
-  mdPath: text('md_path').notNull(),
-  rawDump: text('raw_dump').notNull(),
-  summary: text('summary'),
+  messageId: text('message_id').notNull().unique(),
+  folder: text('folder').notNull(),
+  fromName: text('from_name'),
+  fromAddress: text('from_address').notNull(),
+  subject: text('subject').notNull(),
+  receivedAt: integer('received_at', { mode: 'timestamp_ms' }).notNull(),
+  bodyText: text('body_text').notNull(),
+  bodyHtmlPath: text('body_html_path'),
+  rawPath: text('raw_path'),
+  hasAttachment: integer('has_attachment', { mode: 'boolean' }).notNull().default(false),
+  inReplyTo: text('in_reply_to'),
+  referencesHeader: text('references_header'),
+  screenResult: text('screen_result').notNull().default('SUSPECT'),
+  parseStatus: text('parse_status').notNull().default('PENDING'),
+  parsedAt: integer('parsed_at', { mode: 'timestamp_ms' }),
+  confidence: integer('confidence'),
+  linkedApplicationId: text('linked_application_id').references(() => application.id),
+  reviewStatus: text('review_status').notNull().default('NEEDS_REVIEW'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
-export const question = sqliteTable('question', {
+export const emailExtraction = sqliteTable('email_extraction', {
   id: text('id').primaryKey(),
-  text: text('text').notNull(),
-  category: text('category'),
-  applicationId: text('application_id').references(() => application.id),
-  companyId: text('company_id').references(() => company.id),
-  interviewNoteId: text('interview_note_id').references(() => interviewNote.id),
-  round: integer('round'),
-  interviewType: text('interview_type'),
-  askedAt: integer('asked_at', { mode: 'timestamp_ms' }),
-  myAnswer: text('my_answer'),
-  referenceAnswer: text('reference_answer'),
-  selfRating: integer('self_rating'),
-  status: text('status').notNull(),
-  source: text('source').notNull(),
-  importKey: text('import_key'),
+  emailId: text('email_id')
+    .notNull()
+    .references(() => email.id),
+  eventType: text('event_type').notNull(),
+  companyName: text('company_name').notNull(),
+  businessUnit: text('business_unit'),
+  position: text('position'),
+  batch: text('batch'),
+  occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
+  deadlineAt: integer('deadline_at', { mode: 'timestamp_ms' }),
+  confidence: integer('confidence').notNull(),
+  suggestedApplicationId: text('suggested_application_id').references(
+    () => application.id,
+  ),
+  matchMethod: text('match_method').notNull(),
+  rawJson: text('raw_json').notNull(),
+  eventCreated: integer('event_created', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
-export const importCandidate = sqliteTable('import_candidate', {
+export type EmailRow = typeof email.$inferSelect;
+export type NewEmailRow = typeof email.$inferInsert;
+export type EmailExtractionRow = typeof emailExtraction.$inferSelect;
+export type NewEmailExtractionRow = typeof emailExtraction.$inferInsert;
+
+export const attachment = sqliteTable('attachment', {
   id: text('id').primaryKey(),
-  text: text('text').notNull(),
-  category: text('category'),
-  companyId: text('company_id').references(() => company.id),
-  applicationId: text('application_id').references(() => application.id),
-  round: integer('round'),
-  interviewType: text('interview_type'),
-  sourceFile: text('source_file').notNull(),
-  importKey: text('import_key').notNull(),
-  status: text('status').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  emailId: text('email_id')
+    .notNull()
+    .references(() => email.id),
+  filename: text('filename').notNull(),
+  path: text('path').notNull(),
+  size: integer('size').notNull(),
+  mime: text('mime'),
 });
 
-export type InterviewNoteRow = typeof interviewNote.$inferSelect;
-export type NewInterviewNoteRow = typeof interviewNote.$inferInsert;
-export type QuestionRow = typeof question.$inferSelect;
-export type NewQuestionRow = typeof question.$inferInsert;
-export type ImportCandidateRow = typeof importCandidate.$inferSelect;
-export type NewImportCandidateRow = typeof importCandidate.$inferInsert;
+export const syncState = sqliteTable('sync_state', {
+  id: text('id').primaryKey(),
+  folder: text('folder').notNull().unique(),
+  lastUid: integer('last_uid').notNull().default(0),
+  lastSyncAt: integer('last_sync_at', { mode: 'timestamp_ms' }),
+});
+
+export type AttachmentRow = typeof attachment.$inferSelect;
+export type NewAttachmentRow = typeof attachment.$inferInsert;
+export type SyncStateRow = typeof syncState.$inferSelect;
+export type NewSyncStateRow = typeof syncState.$inferInsert;

@@ -351,7 +351,7 @@ Node 侧使用 `imapflow`（IMAP 客户端）+ `mailparser`（邮件解析），
 
 只做页面内提醒，不做外部推送渠道。
 
-- **今日待办**：`ball == ME` 的记录，按 `nextDeadlineAt` 排序
+- **今日待办**：`ball == ME` 且尚未截止（`nextDeadlineAt` 为空，或本地日历日 ≥ 今天）的记录，按 `nextDeadlineAt` 排序。已截止的仍留在看板「待我行动」栏，不进今日待办
 - **沉寂检测**：`ball == THEM && now - lastEventAt > N 天`，高亮显示
 
 不做日历导出、不做微信推送、不做系统通知。

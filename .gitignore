@@ -4,6 +4,7 @@ dist/
 *.log
 .env
 .env.*
+!.env.example
 
 # 运行时数据目录 —— 代码仓库与个人数据严格分离
 data/

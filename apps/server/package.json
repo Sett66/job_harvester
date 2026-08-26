@@ -11,7 +11,12 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "recompute": "tsx src/commands/recompute.ts",
-    "import:yuque": "tsx src/commands/import-yuque.ts"
+    "reextract": "tsx src/commands/reextract.ts",
+    "fix:import-batch": "tsx src/commands/fix-import-batch.ts",
+    "remerge": "tsx src/commands/remerge.ts",
+    "rescreen": "tsx src/commands/rescreen.ts",
+    "import:excel": "tsx src/commands/import-excel.ts",
+    "mail:set-credentials": "tsx src/commands/set-mail-credentials.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.2",
@@ -21,6 +26,10 @@
     "@nestjs/platform-fastify": "^11.1.6",
     "better-sqlite3": "^12.2.0",
     "drizzle-orm": "^0.44.5",
+    "imapflow": "1",
+    "keytar": "^7.9.0",
+    "mailparser": "^3.9.16",
+    "openai": "^7.5.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "uuid": "^11.1.0",
@@ -30,6 +39,7 @@
     "@nestjs/cli": "^11.0.10",
     "@nestjs/testing": "^11.1.6",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/mailparser": "^3.4.6",
     "@types/node": "^24.3.0",
     "@types/uuid": "^10.0.0",
     "cross-env": "^10.0.0",

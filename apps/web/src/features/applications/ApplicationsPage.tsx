@@ -6,7 +6,6 @@ import {
 } from '@job-harvester/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ApplicationDetailPage } from '@/features/applications/detail/ApplicationDetailPage';
 import {
   createApplication,
   deleteApplication,
@@ -37,12 +36,14 @@ function formatOptionalDate(value?: Date | string | null): string {
   return date.toLocaleDateString('zh-CN');
 }
 
-export function ApplicationsPage() {
+export function ApplicationsPage({
+  onBack,
+  onOpenApplication,
+}: {
+  onBack?: () => void;
+  onOpenApplication?: (applicationId: string, companyName: string) => void;
+}) {
   const queryClient = useQueryClient();
-  const [selectedApplication, setSelectedApplication] = useState<{
-    id: string;
-    companyName: string;
-  } | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [editingApplication, setEditingApplication] =
@@ -61,6 +62,8 @@ export function ApplicationsPage() {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['applications'] });
     void queryClient.invalidateQueries({ queryKey: ['companies'] });
+    void queryClient.invalidateQueries({ queryKey: ['board'] });
+    void queryClient.invalidateQueries({ queryKey: ['today'] });
   };
 
   const createMutation = useMutation({
@@ -108,20 +111,15 @@ export function ApplicationsPage() {
     });
   }
 
-  if (selectedApplication) {
-    return (
-      <ApplicationDetailPage
-        applicationId={selectedApplication.id}
-        companyName={selectedApplication.companyName}
-        onBack={() => setSelectedApplication(null)}
-      />
-    );
-  }
-
   return (
-    <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-8 p-8">
+    <div className="mx-auto flex min-h-full max-w-5xl flex-col gap-8 p-8">
       <header className="flex items-start justify-between gap-4">
         <div>
+          {onBack ? (
+            <Button variant="secondary" size="sm" className="mb-3" onClick={onBack}>
+              返回看板
+            </Button>
+          ) : null}
           <h1 className="text-3xl font-bold tracking-tight">投递记录</h1>
           <p className="mt-2 text-muted-foreground">
             按公司聚合展示，一条投递 = 公司 + 业务线 + 批次
@@ -218,12 +216,15 @@ export function ApplicationsPage() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() =>
-                              setSelectedApplication({
-                                id: application.id,
-                                companyName: group.company.canonicalName,
-                              })
-                            }
+                            onClick={() => {
+                              if (onOpenApplication) {
+                                onOpenApplication(
+                                  application.id,
+                                  group.company.canonicalName,
+                                );
+                                return;
+                              }
+                            }}
                           >
                             详情
                           </Button>

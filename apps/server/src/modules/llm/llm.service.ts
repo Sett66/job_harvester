@@ -1,27 +1,60 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import type { LlmCallLogDto } from '@job-harvester/shared';
+import OpenAI from 'openai';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { ZodSchema } from 'zod';
+import { getLlmEnv } from '../../config/env.schema';
+import { traceLlmCall } from './llm-trace';
 import { redactSensitiveText } from './redact';
 
-export type LlmCallResult<T> =
-  | { ok: true; data: T; usage?: { promptTokens: number; completionTokens: number } }
-  | { ok: false; error: string };
+export const LLM_CHAT_CLIENT = Symbol('LLM_CHAT_CLIENT');
 
-export type LlmCallLog = {
-  promptName: string;
-  durationMs: number;
-  success: boolean;
-  promptTokens?: number;
-  completionTokens?: number;
-  error?: string;
+export type LlmUsage = {
+  promptTokens: number;
+  completionTokens: number;
 };
+
+export type LlmChatCompletion = {
+  content: string;
+  usage?: LlmUsage;
+};
+
+export type LlmChatClient = {
+  complete(input: { system: string; user: string }): Promise<LlmChatCompletion>;
+};
+
+export type LlmCallResult<T> =
+  | {
+      ok: true;
+      data: T;
+      raw: string;
+      redactedUser: string;
+      usage?: LlmUsage;
+    }
+  | {
+      ok: false;
+      error: string;
+      raw?: string;
+      redactedUser: string;
+    };
+
+const MAX_MEMORY_LOGS = 200;
 
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
-  private readonly logs: LlmCallLog[] = [];
+  private readonly logs: LlmCallLogDto[] = [];
+  private openaiClient: OpenAI | undefined;
 
-  getCallLogs(): LlmCallLog[] {
-    return [...this.logs];
+  constructor(
+    @Optional()
+    @Inject(LLM_CHAT_CLIENT)
+    private readonly injectedClient?: LlmChatClient,
+  ) {}
+
+  getCallLogs(): LlmCallLogDto[] {
+    return [...this.logs].reverse();
   }
 
   async completeJson<T>(options: {
@@ -33,226 +66,190 @@ export class LlmService {
     const startedAt = Date.now();
     const redactedUser = redactSensitiveText(options.user);
     const redactedSystem = redactSensitiveText(options.system);
+    let promptTokens = 0;
+    let completionTokens = 0;
+    let lastRaw: string | undefined;
+    let lastError = '未知错误';
+
+    const env = getLlmEnv();
+    if (!this.injectedClient && !env.LLM_API_KEY) {
+      return this.finishFailure({
+        promptName: options.promptName,
+        startedAt,
+        redactedUser,
+        error: 'LLM_API_KEY 未配置',
+      });
+    }
 
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      const userForAttempt =
+        attempt === 0 || !lastRaw
+          ? redactedUser
+          : `${redactedUser}\n\n[系统] 上次输出未通过校验：${lastError}\n请只输出符合 schema 的 JSON。`;
+
       try {
-        const raw = await this.callModel(redactedSystem, redactedUser);
-        const parsedJson = this.extractJson(raw);
+        const completion = await this.callModel(redactedSystem, userForAttempt);
+        lastRaw = completion.content;
+        if (completion.usage) {
+          promptTokens += completion.usage.promptTokens;
+          completionTokens += completion.usage.completionTokens;
+        }
+
+        const parsedJson = extractJson(completion.content);
         const validated = options.schema.safeParse(parsedJson);
         if (validated.success) {
+          const usage = toUsage(promptTokens, completionTokens);
           this.recordLog({
             promptName: options.promptName,
             durationMs: Date.now() - startedAt,
             success: true,
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            createdAt: new Date().toISOString(),
           });
-          return { ok: true, data: validated.data };
+          return {
+            ok: true,
+            data: validated.data,
+            raw: completion.content,
+            redactedUser,
+            usage,
+          };
         }
-        if (attempt === 1) {
-          const error = validated.error.message;
-          this.recordLog({
-            promptName: options.promptName,
-            durationMs: Date.now() - startedAt,
-            success: false,
-            error,
-          });
-          return { ok: false, error };
-        }
+
+        lastError = validated.error.message;
       } catch (error) {
-        if (attempt === 1) {
-          const message = error instanceof Error ? error.message : String(error);
-          this.recordLog({
-            promptName: options.promptName,
-            durationMs: Date.now() - startedAt,
-            success: false,
-            error: message,
-          });
-          return { ok: false, error: message };
-        }
+        lastError = error instanceof Error ? error.message : String(error);
       }
     }
 
-    return { ok: false, error: '未知错误' };
+    return this.finishFailure({
+      promptName: options.promptName,
+      startedAt,
+      redactedUser,
+      error: lastError,
+      raw: lastRaw,
+      promptTokens,
+      completionTokens,
+    });
   }
 
-  private async callModel(system: string, user: string): Promise<string> {
-    const apiKey = process.env.LLM_API_KEY;
-    const baseURL = process.env.LLM_BASE_URL ?? 'https://api.deepseek.com';
-    const model = process.env.LLM_MODEL ?? 'deepseek-chat';
+  private finishFailure(input: {
+    promptName: string;
+    startedAt: number;
+    redactedUser: string;
+    error: string;
+    raw?: string;
+    promptTokens?: number;
+    completionTokens?: number;
+  }): LlmCallResult<never> {
+    const usage = toUsage(input.promptTokens ?? 0, input.completionTokens ?? 0);
+    this.recordLog({
+      promptName: input.promptName,
+      durationMs: Date.now() - input.startedAt,
+      success: false,
+      promptTokens: usage?.promptTokens,
+      completionTokens: usage?.completionTokens,
+      error: input.error,
+      createdAt: new Date().toISOString(),
+    });
+    return {
+      ok: false,
+      error: input.error,
+      raw: input.raw,
+      redactedUser: input.redactedUser,
+    };
+  }
 
-    if (!apiKey) {
-      return this.mockResponse(system, user);
+  private async callModel(system: string, user: string): Promise<LlmChatCompletion> {
+    if (this.injectedClient) {
+      return this.injectedClient.complete({ system, user });
     }
 
-    const response = await fetch(`${baseURL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        response_format: { type: 'json_object' },
-      }),
+    const env = getLlmEnv();
+    if (!env.LLM_API_KEY) {
+      throw new Error('LLM_API_KEY 未配置');
+    }
+
+    if (!this.openaiClient) {
+      this.openaiClient = new OpenAI({
+        apiKey: env.LLM_API_KEY,
+        baseURL: env.LLM_BASE_URL,
+      });
+    }
+
+    const completion = await this.openaiClient.chat.completions.create({
+      model: env.LLM_MODEL,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      response_format: { type: 'json_object' },
     });
 
-    if (!response.ok) {
-      throw new Error(`LLM 请求失败: ${response.status}`);
-    }
-
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = payload.choices?.[0]?.message?.content;
+    const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error('LLM 返回空内容');
     }
-    return content;
+
+    return {
+      content,
+      usage: completion.usage
+        ? {
+            promptTokens: completion.usage.prompt_tokens,
+            completionTokens: completion.usage.completion_tokens,
+          }
+        : undefined,
+    };
   }
 
-  private mockResponse(system: string, user: string): string {
-    if (system.includes('邮件解析') || system.includes('extract-mail')) {
-      return this.mockExtractMail(user);
-    }
-
-    if (system.includes('追问')) {
-      const hasMissingAnswer = user.includes('"myAnswer"') && !user.includes('"myAnswer": "');
-      if (hasMissingAnswer) {
-        return JSON.stringify({
-          reply: '你当时是怎么回答的？哪个点卡住了？',
-          shouldContinue: true,
-        });
-      }
-      return JSON.stringify({
-        reply: '',
-        shouldContinue: false,
-      });
-    }
-
-    const segments = user
-      .split(/[、，,；;\n]+/)
-      .map((part) => part.trim())
-      .filter((part) => part.length > 2);
-
-    const questions = segments
-      .filter((part) => /问|索引|缓存|Kafka|Redis|MySQL|项目|算法|设计/.test(part))
-      .map((part) => {
-        const weakPoint = /答崩|卡住|不会|忘了/.test(part) ? part : undefined;
-        const text = part
-          .replace(/^(问了|还问了|第三个)/, '')
-          .replace(/我项目那个/, '项目里')
-          .trim();
-        return {
-          text: text.length > 0 ? text : part,
-          category: /项目|Kafka|消息队列/.test(part)
-            ? '项目'
-            : /MySQL|Redis|索引|缓存/.test(part)
-              ? '基础'
-              : undefined,
-          weakPoint,
-        };
-      });
-
-    if (questions.length === 0) {
-      return JSON.stringify({
-        summary: '面试复盘',
-        questions: [{ text: user.slice(0, 200), category: '其他' }],
-      });
-    }
-
-    return JSON.stringify({
-      summary: '面试复盘',
-      questions,
-    });
-  }
-
-  private mockExtractMail(user: string): string {
-    let payload: {
-      subject?: string;
-      fromAddress?: string;
-      bodyText?: string;
-      receivedAt?: string;
-    } = {};
-    try {
-      payload = JSON.parse(user) as typeof payload;
-    } catch {
-      payload = { bodyText: user };
-    }
-
-    const body = payload.bodyText ?? '';
-    const subject = payload.subject ?? '';
-    const combined = `${subject}\n${body}`;
-
-    const deadlineMatch = combined.match(
-      /(?:请于|截止|前完成|之前完成)[^\d]*(\d{1,2})月(\d{1,2})日(?:[^\d]*(\d{1,2}):(\d{2}))?/,
-    );
-    let deadlineAt: string | null = null;
-    if (deadlineMatch) {
-      const month = Number(deadlineMatch[1]);
-      const day = Number(deadlineMatch[2]);
-      const hour = deadlineMatch[3] ? Number(deadlineMatch[3]) : 23;
-      const minute = deadlineMatch[4] ? Number(deadlineMatch[4]) : 59;
-      deadlineAt = new Date(Date.UTC(2026, month - 1, day, hour - 8, minute)).toISOString();
-    }
-
-    const eventType = /笔试/.test(combined)
-      ? 'EXAM_INVITE'
-      : /测评/.test(combined)
-        ? 'ASSESSMENT_INVITE'
-        : /面试/.test(combined)
-          ? 'INTERVIEW_SCHEDULED'
-          : /offer/i.test(combined)
-            ? 'OFFER_INTENT'
-            : 'NOTE';
-
-    const companyMatch =
-      combined.match(/([\u4e00-\u9fa5A-Za-z]+)[\s\-－—]+([\u4e00-\u9fa5A-Za-z]+)/) ??
-      combined.match(/([\u4e00-\u9fa5]{2,8})/);
-    const companyName = companyMatch?.[1] ?? '未知公司';
-    const businessUnit = companyMatch?.[2];
-
-    const confidence = /字节|腾讯|美团|阿里/.test(combined) ? 0.92 : 0.55;
-
-    return JSON.stringify({
-      companyName,
-      businessUnit,
-      position: undefined,
-      eventType,
-      occurredAt: payload.receivedAt ?? new Date().toISOString(),
-      deadlineAt:
-        deadlineAt ??
-        (eventType === 'EXAM_INVITE' || eventType === 'ASSESSMENT_INVITE'
-          ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-          : null),
-      confidence,
-    });
-  }
-
-  private extractJson(raw: string): unknown {
-    const trimmed = raw.trim();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-      return JSON.parse(trimmed);
-    }
-    const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (match?.[1]) {
-      return JSON.parse(match[1]);
-    }
-    throw new Error('无法解析 LLM JSON 输出');
-  }
-
-  private recordLog(entry: LlmCallLog): void {
+  private recordLog(entry: LlmCallLogDto): void {
     this.logs.push(entry);
+    if (this.logs.length > MAX_MEMORY_LOGS) {
+      this.logs.splice(0, this.logs.length - MAX_MEMORY_LOGS);
+    }
+    persistCallLog(entry);
+    traceLlmCall(entry);
+
     if (entry.success) {
       this.logger.log(
-        `${entry.promptName} 成功 (${entry.durationMs}ms)`,
+        `${entry.promptName} 成功 (${entry.durationMs}ms, tokens=${entry.promptTokens ?? 0}+${entry.completionTokens ?? 0})`,
       );
     } else {
       this.logger.warn(
         `${entry.promptName} 失败 (${entry.durationMs}ms): ${entry.error}`,
       );
     }
+  }
+}
+
+function toUsage(promptTokens: number, completionTokens: number): LlmUsage | undefined {
+  if (promptTokens <= 0 && completionTokens <= 0) {
+    return undefined;
+  }
+  return { promptTokens, completionTokens };
+}
+
+function extractJson(raw: string): unknown {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    return JSON.parse(trimmed);
+  }
+  const match = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (match?.[1]) {
+    return JSON.parse(match[1]);
+  }
+  throw new Error('无法解析 LLM JSON 输出');
+}
+
+function persistCallLog(entry: LlmCallLogDto): void {
+  if (process.env.VITEST) {
+    return;
+  }
+  try {
+    const filePath = path.resolve(process.cwd(), '../../data/llm-calls.jsonl');
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.appendFileSync(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+  } catch {
+    // 落盘失败不影响调用
   }
 }
