@@ -2,6 +2,7 @@ import { and, eq, ne, or, sql } from 'drizzle-orm';
 import type { MatchMethod } from '@job-harvester/shared';
 import type { AppDatabase } from '../../db/database.provider';
 import { application, email, event } from '../../db/schema';
+import { batchesMatch } from './batch-match';
 
 function normalizeText(value?: string | null): string {
   return (value ?? '').replace(/[\s\-－—_]+/g, '').toLowerCase();
@@ -24,12 +25,27 @@ export async function resolveApplicationForExtraction(
   input: {
     emailId: string;
     companyId: string;
+    batch: string;
     businessUnit?: string | null;
     position?: string | null;
     inReplyTo?: string | null;
     referencesHeader?: string | null;
   },
 ): Promise<MergeApplicationResult> {
+  const extractedBatch = input.batch.trim();
+  if (!extractedBatch) {
+    return { applicationId: null, matchMethod: 'NONE' };
+  }
+
+  async function applicationBatchMatches(applicationId: string): Promise<boolean> {
+    const rows = await db
+      .select({ batch: application.batch })
+      .from(application)
+      .where(eq(application.id, applicationId))
+      .limit(1);
+    return batchesMatch(extractedBatch, rows[0]?.batch);
+  }
+
   const threadIds = [
     ...parseMessageIds(input.inReplyTo),
     ...parseMessageIds(input.referencesHeader),
@@ -44,10 +60,13 @@ export async function resolveApplicationForExtraction(
         .limit(1);
       const related = relatedEmails[0];
       if (related?.linkedApplicationId) {
-        return {
-          applicationId: related.linkedApplicationId,
-          matchMethod: 'THREAD',
-        };
+        if (await applicationBatchMatches(related.linkedApplicationId)) {
+          return {
+            applicationId: related.linkedApplicationId,
+            matchMethod: 'THREAD',
+          };
+        }
+        continue;
       }
 
       const relatedEvents = await db
@@ -56,10 +75,12 @@ export async function resolveApplicationForExtraction(
         .where(eq(event.emailId, related?.id ?? ''))
         .limit(1);
       if (relatedEvents[0]?.applicationId) {
-        return {
-          applicationId: relatedEvents[0].applicationId,
-          matchMethod: 'THREAD',
-        };
+        if (await applicationBatchMatches(relatedEvents[0].applicationId)) {
+          return {
+            applicationId: relatedEvents[0].applicationId,
+            matchMethod: 'THREAD',
+          };
+        }
       }
     }
   }
@@ -74,11 +95,15 @@ export async function resolveApplicationForExtraction(
       ),
     );
 
+  const batchMatchedApplications = companyApplications.filter((row) =>
+    batchesMatch(extractedBatch, row.batch),
+  );
+
   const normalizedBusinessUnit = normalizeText(input.businessUnit);
   const normalizedPosition = normalizeText(input.position);
 
   if (normalizedBusinessUnit || normalizedPosition) {
-    for (const row of companyApplications) {
+    for (const row of batchMatchedApplications) {
       const businessUnitMatch =
         normalizedBusinessUnit &&
         normalizeText(row.businessUnit) === normalizedBusinessUnit;
@@ -93,9 +118,9 @@ export async function resolveApplicationForExtraction(
     }
   }
 
-  if (companyApplications.length === 1) {
+  if (batchMatchedApplications.length === 1) {
     return {
-      applicationId: companyApplications[0]!.id,
+      applicationId: batchMatchedApplications[0]!.id,
       matchMethod: 'SINGLE_ACTIVE',
     };
   }
@@ -146,6 +171,26 @@ export function shouldAutoConfirm(input: {
     input.confidence >= getAutoConfidenceThreshold() &&
     input.matchMethod !== 'NONE'
   );
+}
+
+export function canSafelyAutoCreateEvent(input: {
+  eventType: string;
+  deadlineAt?: Date | null;
+  scheduledAt?: Date | null;
+  round?: number | null;
+}): boolean {
+  if (
+    input.eventType === 'EXAM_INVITE' ||
+    input.eventType === 'ASSESSMENT_INVITE'
+  ) {
+    return input.deadlineAt != null;
+  }
+
+  if (input.eventType === 'INTERVIEW_SCHEDULED') {
+    return input.scheduledAt != null && input.round != null;
+  }
+
+  return true;
 }
 
 export async function countEvents(db: AppDatabase): Promise<number> {

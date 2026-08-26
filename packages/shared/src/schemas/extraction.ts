@@ -33,6 +33,7 @@ export const mailExtractionOutputSchema = z.object({
   companyName: z.string().min(1),
   businessUnit: z.string().optional(),
   position: z.string().optional(),
+  batch: z.string().min(1),
   eventType: eventTypeSchema,
   occurredAt: z.coerce.date(),
   deadlineAt: z.coerce.date().nullable().optional(),
@@ -52,6 +53,7 @@ export const reviewQueueItemSchema = z.object({
   companyName: z.string(),
   businessUnit: z.string().nullable(),
   position: z.string().nullable(),
+  batch: z.string().nullable(),
   eventType: eventTypeSchema,
   occurredAt: z.coerce.date(),
   deadlineAt: z.coerce.date().nullable(),
@@ -86,3 +88,13 @@ export const confirmReviewSchema = z.object({
 });
 
 export type ConfirmReviewInput = z.infer<typeof confirmReviewSchema>;
+
+export const extractionBatchResultSchema = z.object({
+  processed: z.number().int().nonnegative(),
+  auto: z.number().int().nonnegative(),
+  queued: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+});
+
+export type ExtractionBatchResult = z.infer<typeof extractionBatchResultSchema>;

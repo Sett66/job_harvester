@@ -12,6 +12,8 @@
     "db:migrate": "drizzle-kit migrate",
     "recompute": "tsx src/commands/recompute.ts",
     "reextract": "tsx src/commands/reextract.ts",
+    "fix:import-batch": "tsx src/commands/fix-import-batch.ts",
+    "remerge": "tsx src/commands/remerge.ts",
     "rescreen": "tsx src/commands/rescreen.ts",
     "import:excel": "tsx src/commands/import-excel.ts",
     "mail:set-credentials": "tsx src/commands/set-mail-credentials.ts"

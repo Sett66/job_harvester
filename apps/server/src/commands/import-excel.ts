@@ -13,7 +13,7 @@ import {
 import { splitCompany } from '../modules/import/company-splitter';
 import { parseXlsx } from '../modules/import/xlsx-parser';
 
-const DEFAULT_BATCH = '2026春招';
+const DEFAULT_BATCH = '2027暑期实习';
 
 type PendingReviewItem = {
   importKey: string;

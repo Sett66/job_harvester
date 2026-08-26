@@ -1,11 +1,13 @@
 import type {
   EmailDetail,
   EmailListItem,
+  ExtractionBatchResult,
   MailSyncResult,
   ScreenResult,
 } from '@job-harvester/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { runExtraction } from '@/api/extraction';
 import {
   fetchMail,
   fetchMailScreenStats,
@@ -75,6 +77,9 @@ export function MailsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [screenFilter, setScreenFilter] = useState<ScreenFilter>('ALL');
   const [syncResult, setSyncResult] = useState<MailSyncResult | null>(null);
+  const [extractResult, setExtractResult] = useState<ExtractionBatchResult | null>(
+    null,
+  );
 
   const statusQuery = useQuery({
     queryKey: ['mails', 'status'],
@@ -107,6 +112,18 @@ export function MailsPage() {
     },
   });
 
+  const extractMutation = useMutation({
+    mutationFn: runExtraction,
+    onSuccess: (result) => {
+      setExtractResult(result);
+      void queryClient.invalidateQueries({ queryKey: ['mails'] });
+      void queryClient.invalidateQueries({ queryKey: ['review-queue'] });
+      void queryClient.invalidateQueries({ queryKey: ['applications'] });
+      void queryClient.invalidateQueries({ queryKey: ['board'] });
+      void queryClient.invalidateQueries({ queryKey: ['today'] });
+    },
+  });
+
   const status = statusQuery.data;
   const stats = statsQuery.data;
   const items = listQuery.data?.items ?? [];
@@ -119,18 +136,31 @@ export function MailsPage() {
         <div>
           <h1 className="text-2xl font-semibold">邮件</h1>
           <p className="text-sm text-muted-foreground">
-            同步原始邮件并按规则粗筛。修改规则后运行{' '}
+            同步原始邮件并按规则粗筛，再运行 LLM 抽取结构化事件。修改规则后运行{' '}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">
               pnpm --filter @job-harvester/server rescreen
             </code>
+            ，修改 prompt 后运行{' '}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              pnpm --filter @job-harvester/server reextract
+            </code>
           </p>
         </div>
-        <Button
-          disabled={syncMutation.isPending || !status?.credentialsConfigured}
-          onClick={() => syncMutation.mutate()}
-        >
-          {syncMutation.isPending ? '同步中…' : '同步邮件'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={extractMutation.isPending}
+            onClick={() => extractMutation.mutate()}
+          >
+            {extractMutation.isPending ? '抽取中…' : '运行 LLM 抽取'}
+          </Button>
+          <Button
+            disabled={syncMutation.isPending || !status?.credentialsConfigured}
+            onClick={() => syncMutation.mutate()}
+          >
+            {syncMutation.isPending ? '同步中…' : '同步邮件'}
+          </Button>
+        </div>
       </div>
 
       <Card className="shrink-0">
@@ -175,6 +205,20 @@ export function MailsPage() {
               上次同步扫描 {syncResult.scannedFolders.join('、') || '无文件夹'}；拉取{' '}
               {syncResult.fetched}，新增 {syncResult.inserted}，跳过 {syncResult.skipped}
               ，失败 {syncResult.failed}
+            </p>
+          ) : null}
+          {extractMutation.error ? (
+            <p className="text-red-600">
+              {extractMutation.error instanceof Error
+                ? extractMutation.error.message
+                : '抽取失败'}
+            </p>
+          ) : null}
+          {extractResult ? (
+            <p>
+              上次抽取处理 {extractResult.processed} 封：自动入库 {extractResult.auto}
+              ，进确认队列 {extractResult.queued}，失败 {extractResult.failed}，跳过{' '}
+              {extractResult.skipped}
             </p>
           ) : null}
         </CardContent>

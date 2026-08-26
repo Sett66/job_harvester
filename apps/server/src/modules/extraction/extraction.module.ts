@@ -5,6 +5,7 @@ import { CompaniesModule } from '../companies/companies.module';
 import { EventsModule } from '../events/events.module';
 import { LlmModule } from '../llm/llm.module';
 import { ExtractionController } from './extraction.controller';
+import { ExtractionBatchController } from './extraction-batch.controller';
 import { ExtractionService } from './extraction.service';
 
 @Module({
@@ -15,7 +16,7 @@ import { ExtractionService } from './extraction.service';
     ApplicationsModule,
     EventsModule,
   ],
-  controllers: [ExtractionController],
+  controllers: [ExtractionController, ExtractionBatchController],
   providers: [ExtractionService],
   exports: [ExtractionService],
 })

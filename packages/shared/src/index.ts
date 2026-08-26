@@ -91,6 +91,7 @@ export {
 
 export {
   confirmReviewSchema,
+  extractionBatchResultSchema,
   mailExtractionOutputSchema,
   matchMethodSchema,
   parseStatusSchema,
@@ -98,6 +99,7 @@ export {
   reviewStatusSchema,
   screenResultSchema,
   type ConfirmReviewInput,
+  type ExtractionBatchResult,
   type MailExtractionOutput,
   type MatchMethod,
   type ParseStatus,

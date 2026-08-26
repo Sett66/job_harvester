@@ -37,6 +37,7 @@ import { getStalenessThresholds } from '../../config/staleness.config';
 import { DATABASE, type AppDatabase } from '../../db/database.provider';
 import { application, companyAlias, event } from '../../db/schema';
 import { CompaniesService } from '../companies/companies.service';
+import { normalizeCompanyName } from '../extraction/alias-match';
 
 function normalizeOptionalText(value?: string | null): string | null {
   if (value == null) {
@@ -423,10 +424,28 @@ export class ApplicationsService {
       throw new BadRequestException(parsed.error.flatten());
     }
 
+    const alias = parsed.data.alias.trim();
+    const existingRows = await this.db
+      .select()
+      .from(companyAlias)
+      .where(eq(companyAlias.companyId, companyId));
+
+    const duplicate = existingRows.find(
+      (row) => normalizeCompanyName(row.alias) === normalizeCompanyName(alias),
+    );
+    if (duplicate) {
+      return {
+        id: duplicate.id,
+        companyId: duplicate.companyId,
+        alias: duplicate.alias,
+        source: duplicate.source as CompanyAlias['source'],
+      };
+    }
+
     const row = {
       id: uuidv4(),
       companyId,
-      alias: parsed.data.alias.trim(),
+      alias,
       source: parsed.data.source,
     };
 

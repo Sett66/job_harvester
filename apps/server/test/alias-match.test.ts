@@ -10,4 +10,8 @@ describe('normalizeCompanyName', () => {
       normalizeCompanyName('字节－豆包'),
     );
   });
+
+  it('strips common company suffixes', () => {
+    expect(normalizeCompanyName('360集团')).toBe(normalizeCompanyName('360'));
+  });
 });

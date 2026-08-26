@@ -123,7 +123,7 @@ function ReviewItemCard({ item }: { item: ReviewQueueItem }) {
     companyName: item.companyName,
     businessUnit: item.businessUnit ?? '',
     position: item.position ?? '',
-    batch: '2026秋招',
+    batch: item.batch ?? '',
     stage: 'APPLIED',
   };
 
@@ -133,7 +133,8 @@ function ReviewItemCard({ item }: { item: ReviewQueueItem }) {
         <CardTitle className="text-base">{item.subject}</CardTitle>
         <p className="text-sm text-muted-foreground">
           {item.fromName ?? item.fromAddress} ·{' '}
-          {new Date(item.receivedAt).toLocaleString('zh-CN')} · 置信度{' '}
+          {new Date(item.receivedAt).toLocaleString('zh-CN')} · 批次{' '}
+          {item.batch ?? '（未识别）'} · 置信度{' '}
           {(item.confidence * 100).toFixed(0)}% · 匹配{' '}
           {item.matchMethod}
         </p>

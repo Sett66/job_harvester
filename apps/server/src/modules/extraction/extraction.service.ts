@@ -2,12 +2,14 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
   confirmReviewSchema,
   mailExtractionOutputSchema,
   type ConfirmReviewInput,
+  type ExtractionBatchResult,
   type MatchMethod,
   type ReviewQueueItem,
 } from '@job-harvester/shared';
@@ -28,8 +30,9 @@ import {
   addWhitelistDomain,
   extractDomainFromAddress,
 } from '../mail/screen-rules';
-import { matchCompanyByAlias } from './alias-match';
+import { matchCompanyByAlias, normalizeCompanyName } from './alias-match';
 import {
+  canSafelyAutoCreateEvent,
   confidenceFromInt,
   confidenceToInt,
   findEmailsForExtraction,
@@ -38,16 +41,24 @@ import {
   shouldAutoConfirm,
 } from './merge-application';
 
-export type ExtractionBatchResult = {
-  processed: number;
-  auto: number;
-  queued: number;
-  failed: number;
-  skipped: number;
-};
+function readBatchFromExtraction(
+  extraction: typeof emailExtraction.$inferSelect,
+): string {
+  if (extraction.batch?.trim()) {
+    return extraction.batch.trim();
+  }
+  try {
+    const parsed = JSON.parse(extraction.rawJson) as { batch?: string };
+    return parsed.batch?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
 
 @Injectable()
 export class ExtractionService {
+  private readonly logger = new Logger(ExtractionService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: AppDatabase,
     private readonly llmService: LlmService,
@@ -67,12 +78,91 @@ export class ExtractionService {
     };
 
     for (const row of emails) {
-      const outcome = await this.extractEmail(row.id);
       result.processed += 1;
-      result[outcome] += 1;
+      try {
+        const outcome = await this.extractEmail(row.id);
+        result[outcome] += 1;
+      } catch (error) {
+        result.failed += 1;
+        this.logger.error(
+          `抽取失败 emailId=${row.id}：${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     return result;
+  }
+
+  async remergeAll(): Promise<{ updated: number; matched: number; none: number }> {
+    const rows = await this.db
+      .select({
+        extraction: emailExtraction,
+        email,
+      })
+      .from(emailExtraction)
+      .innerJoin(email, eq(emailExtraction.emailId, email.id))
+      .where(eq(emailExtraction.eventCreated, false));
+
+    let updated = 0;
+    let matched = 0;
+    let none = 0;
+
+    for (const { extraction, email: emailRow } of rows) {
+      const batch = readBatchFromExtraction(extraction);
+      if (!batch) {
+        none += 1;
+        continue;
+      }
+
+      const aliasMatch = await matchCompanyByAlias(
+        this.db,
+        extraction.companyName,
+      );
+      if (!aliasMatch) {
+        none += 1;
+        continue;
+      }
+
+      const company = await this.companiesService.findById(aliasMatch.companyId);
+      if (!company) {
+        none += 1;
+        continue;
+      }
+
+      const mergeResult = await resolveApplicationForExtraction(this.db, {
+        emailId: emailRow.id,
+        companyId: company.id,
+        batch,
+        businessUnit: extraction.businessUnit,
+        position: extraction.position,
+        inReplyTo: emailRow.inReplyTo,
+        referencesHeader: emailRow.referencesHeader,
+      });
+
+      await this.db
+        .update(emailExtraction)
+        .set({
+          batch,
+          suggestedApplicationId: mergeResult.applicationId,
+          matchMethod: mergeResult.matchMethod,
+          updatedAt: new Date(),
+        })
+        .where(eq(emailExtraction.id, extraction.id));
+
+      await this.db
+        .update(email)
+        .set({ linkedApplicationId: mergeResult.applicationId })
+        .where(eq(email.id, emailRow.id));
+
+      updated += 1;
+      if (mergeResult.applicationId) {
+        matched += 1;
+      } else {
+        none += 1;
+      }
+    }
+
+    return { updated, matched, none };
   }
 
   async extractEmail(
@@ -138,6 +228,7 @@ export class ExtractionService {
     const mergeResult = await resolveApplicationForExtraction(this.db, {
       emailId: emailRow.id,
       companyId: company.id,
+      batch: extracted.batch,
       businessUnit: extracted.businessUnit,
       position: extracted.position,
       inReplyTo: emailRow.inReplyTo,
@@ -152,6 +243,7 @@ export class ExtractionService {
       companyName: extracted.companyName,
       businessUnit: extracted.businessUnit ?? null,
       position: extracted.position ?? null,
+      batch: extracted.batch,
       occurredAt: extracted.occurredAt,
       deadlineAt: extracted.deadlineAt ?? null,
       confidence: confidenceToInt(extracted.confidence),
@@ -181,6 +273,7 @@ export class ExtractionService {
           companyName: extractionRow.companyName,
           businessUnit: extractionRow.businessUnit,
           position: extractionRow.position,
+          batch: extractionRow.batch,
           occurredAt: extractionRow.occurredAt,
           deadlineAt: extractionRow.deadlineAt,
           confidence: extractionRow.confidence,
@@ -213,10 +306,15 @@ export class ExtractionService {
       return 'skipped';
     }
 
-    const autoConfirm = shouldAutoConfirm({
-      confidence: extracted.confidence,
-      matchMethod: mergeResult.matchMethod,
-    });
+    const autoConfirm =
+      shouldAutoConfirm({
+        confidence: extracted.confidence,
+        matchMethod: mergeResult.matchMethod,
+      }) &&
+      canSafelyAutoCreateEvent({
+        eventType: extracted.eventType,
+        deadlineAt: extracted.deadlineAt ?? null,
+      });
 
     if (autoConfirm && mergeResult.applicationId) {
       await this.createEmailEvent({
@@ -293,6 +391,7 @@ export class ExtractionService {
       companyName: extraction.companyName,
       businessUnit: extraction.businessUnit,
       position: extraction.position,
+      batch: extraction.batch,
       eventType: extraction.eventType as ReviewQueueItem['eventType'],
       occurredAt: extraction.occurredAt,
       deadlineAt: extraction.deadlineAt,
@@ -364,8 +463,6 @@ export class ExtractionService {
       });
     }
 
-    const confirmedCompanyName =
-      data.confirmedCompanyName?.trim() || record.extraction.companyName;
     const applicationRows = await this.db
       .select()
       .from(application)
@@ -373,30 +470,10 @@ export class ExtractionService {
       .limit(1);
     const applicationRow = applicationRows[0];
     if (applicationRow) {
-      const companyRecord = await this.companiesService.findById(
+      await this.ensureConfirmedCompanyAlias(
         applicationRow.companyId,
+        record.extraction.companyName,
       );
-      if (
-        companyRecord &&
-        confirmedCompanyName &&
-        confirmedCompanyName !== record.extraction.companyName
-      ) {
-        await this.applicationsService.createAlias(applicationRow.companyId, {
-          alias: record.extraction.companyName,
-          source: 'CONFIRMED',
-        });
-      } else if (companyRecord && confirmedCompanyName) {
-        const aliasMatch = await matchCompanyByAlias(
-          this.db,
-          record.extraction.companyName,
-        );
-        if (!aliasMatch) {
-          await this.applicationsService.createAlias(applicationRow.companyId, {
-            alias: record.extraction.companyName,
-            source: 'CONFIRMED',
-          });
-        }
-      }
     }
 
     if (data.addSenderDomainToWhitelist) {
@@ -440,6 +517,38 @@ export class ExtractionService {
       .update(email)
       .set({ reviewStatus: 'IGNORED', parsedAt: new Date() })
       .where(eq(email.id, extractionRow.emailId));
+  }
+
+  private async ensureConfirmedCompanyAlias(
+    companyId: string,
+    extractedCompanyName: string,
+  ): Promise<void> {
+    const alias = extractedCompanyName.trim();
+    if (!alias) {
+      return;
+    }
+
+    const companyRecord = await this.companiesService.findById(companyId);
+    if (!companyRecord) {
+      return;
+    }
+
+    if (
+      normalizeCompanyName(alias) ===
+      normalizeCompanyName(companyRecord.canonicalName)
+    ) {
+      return;
+    }
+
+    const existingMatch = await matchCompanyByAlias(this.db, alias);
+    if (existingMatch?.companyId === companyId) {
+      return;
+    }
+
+    await this.applicationsService.createAlias(companyId, {
+      alias,
+      source: 'CONFIRMED',
+    });
   }
 
   private async createEmailEvent(input: {

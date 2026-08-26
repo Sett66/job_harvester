@@ -3,7 +3,13 @@ import type { AppDatabase } from '../../db/database.provider';
 import { company, companyAlias } from '../../db/schema';
 
 export function normalizeCompanyName(name: string): string {
-  return name.replace(/[\s\-－—_]+/g, '').toLowerCase();
+  let normalized = name.replace(/[\s\-－—_]+/g, '').toLowerCase();
+  normalized = normalized.replace(/pdd$/i, '');
+  normalized = normalized.replace(
+    /(集团股份有限公司|股份有限公司|有限公司|集团公司|集团|公司)$/u,
+    '',
+  );
+  return normalized;
 }
 
 export type AliasMatchResult = {

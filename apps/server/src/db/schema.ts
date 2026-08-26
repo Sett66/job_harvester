@@ -100,6 +100,7 @@ export const emailExtraction = sqliteTable('email_extraction', {
   companyName: text('company_name').notNull(),
   businessUnit: text('business_unit'),
   position: text('position'),
+  batch: text('batch'),
   occurredAt: integer('occurred_at', { mode: 'timestamp_ms' }).notNull(),
   deadlineAt: integer('deadline_at', { mode: 'timestamp_ms' }),
   confidence: integer('confidence').notNull(),
