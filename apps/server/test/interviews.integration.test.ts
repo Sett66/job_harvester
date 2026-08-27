@@ -9,6 +9,41 @@ import { Test } from '@nestjs/testing';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module';
 import { DATABASE, createDatabase } from '../src/db/database.provider';
+import {
+  LlmService,
+  type LlmChatClient,
+} from '../src/modules/llm/llm.service';
+
+const mockStructurePayload = {
+  summary: '技术面复盘',
+  questions: [
+    { text: 'MySQL 索引原理', category: '基础' },
+    { text: 'Redis 缓存穿透怎么处理', category: '基础' },
+    {
+      text: '项目消息队列为啥选 Kafka',
+      category: '项目',
+      weakPoint: '答崩了',
+    },
+  ],
+};
+
+const mockLlmClient: LlmChatClient = {
+  complete: async ({ user }) => {
+    if (user.includes('结构化') || user.includes('MySQL')) {
+      return {
+        content: JSON.stringify(mockStructurePayload),
+        usage: { promptTokens: 10, completionTokens: 20 },
+      };
+    }
+    return {
+      content: JSON.stringify({
+        reply: '你当时怎么答的？',
+        shouldContinue: false,
+      }),
+      usage: { promptTokens: 5, completionTokens: 5 },
+    };
+  },
+};
 
 describe('Interviews API (integration)', () => {
   let app: NestFastifyApplication;
@@ -27,6 +62,8 @@ describe('Interviews API (integration)', () => {
       .useFactory({
         factory: () => createDatabase(':memory:'),
       })
+      .overrideProvider(LlmService)
+      .useValue(new LlmService(mockLlmClient))
       .compile();
 
     app = moduleRef.createNestApplication(new FastifyAdapter());

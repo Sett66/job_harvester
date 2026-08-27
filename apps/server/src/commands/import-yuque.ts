@@ -5,53 +5,15 @@ import { eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { createDatabase } from '../db/database.provider';
 import { importCandidate, question } from '../db/schema';
-
-function normalizeQuestionText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
-}
+import { resolveCompanyFromSourceFile } from '../modules/import/source-file-company';
+import {
+  extractQuestionsFromMarkdown,
+  normalizeQuestionText,
+} from './yuque-markdown-parser';
 
 function buildImportKey(sourceFile: string, text: string): string {
   const normalized = `${sourceFile}::${normalizeQuestionText(text)}`;
   return crypto.createHash('sha256').update(normalized).digest('hex');
-}
-
-function extractQuestionsFromMarkdown(content: string, sourceFile: string) {
-  const lines = content.split(/\r?\n/);
-  const results: Array<{ text: string; category?: string }> = [];
-
-  for (const line of lines) {
-    const headingMatch = line.match(/^#{1,6}\s+(.+)$/);
-    const listMatch = line.match(/^[-*+]\s+(.+)$/);
-    const numberedMatch = line.match(/^\d+[.)]\s+(.+)$/);
-
-    const rawText =
-      headingMatch?.[1] ?? listMatch?.[1] ?? numberedMatch?.[1] ?? null;
-    if (!rawText) {
-      continue;
-    }
-
-    const text = normalizeQuestionText(rawText);
-    if (text.length < 3) {
-      continue;
-    }
-    if (/^(目录|摘要|前言|附录|tags?|标签)/i.test(text)) {
-      continue;
-    }
-
-    results.push({ text });
-  }
-
-  if (results.length === 0) {
-    const paragraphs = content
-      .split(/\n\s*\n/)
-      .map((part) => normalizeQuestionText(part))
-      .filter((part) => part.length >= 3);
-    for (const paragraph of paragraphs.slice(0, 20)) {
-      results.push({ text: paragraph.slice(0, 500) });
-    }
-  }
-
-  return results.map((item) => ({ ...item, sourceFile }));
 }
 
 async function main() {
@@ -86,11 +48,18 @@ async function main() {
 
   let created = 0;
   let skipped = 0;
+  const companyCache = new Map<string, string | null>();
 
   for (const filePath of files) {
     const relativePath = path.relative(resolvedDir, filePath);
     const content = fs.readFileSync(filePath, 'utf8');
     const extracted = extractQuestionsFromMarkdown(content, relativePath);
+
+    if (!companyCache.has(relativePath)) {
+      const resolved = await resolveCompanyFromSourceFile(db, relativePath);
+      companyCache.set(relativePath, resolved?.companyId ?? null);
+    }
+    const companyId = companyCache.get(relativePath) ?? null;
 
     for (const item of extracted) {
       const importKey = buildImportKey(item.sourceFile, item.text);
@@ -119,7 +88,7 @@ async function main() {
         id: uuidv4(),
         text: item.text,
         category: item.category ?? null,
-        companyId: null,
+        companyId,
         applicationId: null,
         round: null,
         interviewType: null,

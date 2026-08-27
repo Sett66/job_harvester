@@ -64,12 +64,63 @@ export const interviewNoteSchema = z.object({
 
 export type InterviewNote = z.infer<typeof interviewNoteSchema>;
 
-export const structuredQuestionSchema = z.object({
-  text: z.string().min(1),
-  category: z.string().optional(),
-  myAnswer: z.string().optional(),
-  weakPoint: z.string().optional(),
-});
+/** LLM 偶发把 weakPoint 输出成 boolean，统一收成可选字符串 */
+const llmOptionalTextSchema = z.preprocess((value) => {
+  if (value == null || value === '') {
+    return undefined;
+  }
+  if (typeof value === 'boolean') {
+    return value ? '存在薄弱点' : undefined;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  return undefined;
+}, z.string().optional());
+
+/** LLM 偶发用 question / title 等字段名代替 text，统一归一 */
+function normalizeStructuredQuestionInput(value: unknown): unknown {
+  if (typeof value !== 'object' || value == null) {
+    return value;
+  }
+  const obj = value as Record<string, unknown>;
+  const textCandidate =
+    obj.text ?? obj.question ?? obj.title ?? obj.content ?? obj.name;
+  return {
+    ...obj,
+    text: textCandidate,
+  };
+}
+
+const structuredQuestionTextSchema = z.preprocess((value) => {
+  if (value == null || value === '') {
+    return undefined;
+  }
+  if (typeof value === 'number') {
+    return String(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+  return undefined;
+}, z.string().min(1).refine((value) => value !== 'undefined', {
+  message: '题目文本无效',
+}));
+
+export const structuredQuestionSchema = z.preprocess(
+  normalizeStructuredQuestionInput,
+  z.object({
+    text: structuredQuestionTextSchema,
+    category: llmOptionalTextSchema,
+    myAnswer: llmOptionalTextSchema,
+    weakPoint: llmOptionalTextSchema,
+  }),
+);
 
 export type StructuredQuestion = z.infer<typeof structuredQuestionSchema>;
 
@@ -160,3 +211,12 @@ export const importCandidateSchema = z.object({
 });
 
 export type ImportCandidate = z.infer<typeof importCandidateSchema>;
+
+export const confirmImportCandidateSchema = z.object({
+  selfRating: z.number().int().min(1).max(5).nullable().optional(),
+  status: questionStatusSchema.optional(),
+});
+
+export type ConfirmImportCandidateInput = z.infer<
+  typeof confirmImportCandidateSchema
+>;

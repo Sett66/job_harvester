@@ -8,7 +8,7 @@ export const PROBE_PROMPT = {
 输出 JSON：
 - reply: 追问内容（若 shouldContinue 为 false 可为空）
 - shouldContinue: 是否还需追问
-- updatedQuestions: 从用户回复中补充 myAnswer / weakPoint（可选）`,
+- updatedQuestions: 可选，从用户回复中补充 myAnswer / weakPoint；若提供则必须保留每题的 text 字段且条数与输入一致，不要返回空数组`,
   buildUserPrompt: (input: {
     rawDump: string;
     questions: Array<{ text: string; myAnswer?: string; weakPoint?: string }>;

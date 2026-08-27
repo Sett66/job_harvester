@@ -6,9 +6,13 @@ import { ApplicationDetailPage } from "@/features/applications/detail/Applicatio
 
 import { DashboardPage } from "@/features/board";
 
+import { DebriefPage } from "@/features/debrief";
+
 import { LlmDebugPage } from "@/features/llm-debug";
 
 import { MailsPage } from "@/features/mails";
+
+import { QuestionsPage } from "@/features/questions";
 
 import { ReviewQueuePage } from "@/features/review-queue";
 
@@ -17,6 +21,8 @@ import { Button } from "@/components/ui/button";
 type Tab =
   | "dashboard"
   | "applications"
+  | "debrief"
+  | "questions"
   | "mails"
   | "review-queue"
   | "llm-debug";
@@ -89,6 +95,20 @@ export function App() {
           </Button>
 
           <Button
+            variant={tab === "debrief" ? "default" : "secondary"}
+            onClick={() => setTab("debrief")}
+          >
+            复盘录入
+          </Button>
+
+          <Button
+            variant={tab === "questions" ? "default" : "secondary"}
+            onClick={() => setTab("questions")}
+          >
+            题库
+          </Button>
+
+          <Button
             variant={tab === "mails" ? "default" : "secondary"}
             onClick={() => setTab("mails")}
           >
@@ -126,6 +146,10 @@ export function App() {
               openApplication(id, name, "applications")
             }
           />
+        ) : tab === "debrief" ? (
+          <DebriefPage />
+        ) : tab === "questions" ? (
+          <QuestionsPage />
         ) : tab === "mails" ? (
           <MailsPage />
         ) : tab === "review-queue" ? (

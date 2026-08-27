@@ -4,10 +4,23 @@ export const STRUCTURE_DEBRIEF_PROMPT = {
 
 要求：
 1. 从口语化文本中识别独立题目，每题一条
-2. 若用户提到「答崩了」「卡住了」，写入 weakPoint
-3. 若用户描述了回答内容，写入 myAnswer
+2. 若用户提到「答崩了」「卡住了」，在 weakPoint 写简短文字描述（必须是字符串，不要用 true/false）
+3. 若用户描述了回答内容，写入 myAnswer（字符串）
 4. category 可选：基础、项目、算法、系统设计、行为面等
-5. 只输出 JSON，不要 markdown 代码块`,
+5. 只输出 JSON，不要 markdown 代码块
+
+输出格式（字段名必须一致）：
+{
+  "summary": "可选摘要",
+  "questions": [
+    {
+      "text": "题目原文（必填，不要用 question/title 等其他字段名）",
+      "category": "可选分类",
+      "myAnswer": "可选，用户当时的回答",
+      "weakPoint": "可选，卡住的点"
+    }
+  ]
+}`,
   buildUserPrompt: (rawDump: string) =>
     `请结构化以下面试复盘原文：\n\n${rawDump}`,
 };

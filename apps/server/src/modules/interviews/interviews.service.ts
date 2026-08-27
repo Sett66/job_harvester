@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  confirmImportCandidateSchema,
   finalizeDebriefSchema,
   probeDebriefSchema,
   probeOutputSchema,
@@ -12,6 +13,8 @@ import {
   startDebriefSchema,
   structureDebriefOutputSchema,
   updateQuestionSchema,
+  type Company,
+  type ConfirmImportCandidateInput,
   type FinalizeDebriefInput,
   type ImportCandidate,
   type InterviewNote,
@@ -24,7 +27,7 @@ import {
   type StructuredQuestion,
   type UpdateQuestionInput,
 } from '@job-harvester/shared';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { DATABASE, type AppDatabase } from '../../db/database.provider';
 import {
@@ -231,6 +234,31 @@ export class InterviewsService {
     return this.toInterviewNote(row);
   }
 
+  async findCompaniesWithQuestions(): Promise<Company[]> {
+    const rows = await this.db
+      .selectDistinct({
+        id: company.id,
+        canonicalName: company.canonicalName,
+        industry: company.industry,
+        website: company.website,
+        note: company.note,
+        createdAt: company.createdAt,
+      })
+      .from(question)
+      .innerJoin(company, eq(question.companyId, company.id))
+      .where(isNotNull(question.companyId))
+      .orderBy(asc(company.canonicalName));
+
+    return rows.map((row) => ({
+      id: row.id,
+      canonicalName: row.canonicalName,
+      industry: row.industry ?? null,
+      website: row.website ?? null,
+      note: row.note ?? null,
+      createdAt: row.createdAt,
+    }));
+  }
+
   async findQuestions(filterInput: QuestionFilter = {}): Promise<Question[]> {
     const parsed = questionFilterSchema.safeParse(filterInput);
     if (!parsed.success) {
@@ -306,7 +334,15 @@ export class InterviewsService {
     return rows.map((row) => this.toImportCandidate(row));
   }
 
-  async confirmImportCandidate(id: string): Promise<Question> {
+  async confirmImportCandidate(
+    id: string,
+    input: ConfirmImportCandidateInput = {},
+  ): Promise<Question> {
+    const parsed = confirmImportCandidateSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.flatten());
+    }
+
     const rows = await this.db
       .select()
       .from(importCandidate)
@@ -333,8 +369,8 @@ export class InterviewsService {
       askedAt: null,
       myAnswer: null,
       referenceAnswer: null,
-      selfRating: null,
-      status: 'NEW',
+      selfRating: parsed.data.selfRating ?? null,
+      status: parsed.data.status ?? 'NEW',
       source: 'IMPORT',
       importKey: candidate.importKey,
       createdAt: now,

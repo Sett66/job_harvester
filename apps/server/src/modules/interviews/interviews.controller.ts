@@ -10,6 +10,8 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  type Company,
+  type ConfirmImportCandidateInput,
   type FinalizeDebriefInput,
   type ImportCandidate,
   type InterviewNote,
@@ -61,6 +63,11 @@ export class InterviewsController {
     return this.interviewsService.findInterviewNote(id);
   }
 
+  @Get('questions/companies')
+  findCompaniesWithQuestions(): Promise<Company[]> {
+    return this.interviewsService.findCompaniesWithQuestions();
+  }
+
   @Get('questions')
   findQuestions(@Query() query: QuestionFilter): Promise<Question[]> {
     return this.interviewsService.findQuestions(query);
@@ -81,8 +88,11 @@ export class InterviewsController {
 
   @Post('import-candidates/:id/confirm')
   @HttpCode(HttpStatus.OK)
-  confirmImportCandidate(@Param('id') id: string): Promise<Question> {
-    return this.interviewsService.confirmImportCandidate(id);
+  confirmImportCandidate(
+    @Param('id') id: string,
+    @Body() body: ConfirmImportCandidateInput = {},
+  ): Promise<Question> {
+    return this.interviewsService.confirmImportCandidate(id, body);
   }
 
   @Post('import-candidates/:id/reject')

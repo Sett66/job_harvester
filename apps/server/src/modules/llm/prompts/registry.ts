@@ -1,6 +1,8 @@
 import {
   debugExtractOutputSchema,
   mailExtractionOutputSchema,
+  probeOutputSchema,
+  structureDebriefOutputSchema,
 } from '@job-harvester/shared';
 import type { ZodTypeAny } from 'zod';
 import {
@@ -13,6 +15,8 @@ import {
   EXTRACT_MAIL_SYSTEM,
   buildExtractMailUserPrompt,
 } from './extract-mail';
+import { PROBE_PROMPT } from './probe';
+import { STRUCTURE_DEBRIEF_PROMPT } from './structure-debrief';
 
 export type RegisteredPrompt = {
   name: string;
@@ -41,6 +45,26 @@ export const PROMPT_REGISTRY: RegisteredPrompt[] = [
         fromAddress: 'debug@local',
         receivedAt: new Date(),
         bodyText: text,
+      }),
+  },
+  {
+    name: STRUCTURE_DEBRIEF_PROMPT.name,
+    description: '面试复盘结构化（JH-10）',
+    system: STRUCTURE_DEBRIEF_PROMPT.system,
+    schema: structureDebriefOutputSchema,
+    buildUser: STRUCTURE_DEBRIEF_PROMPT.buildUserPrompt,
+  },
+  {
+    name: PROBE_PROMPT.name,
+    description: '面试复盘克制追问（JH-10）',
+    system: PROBE_PROMPT.system,
+    schema: probeOutputSchema,
+    buildUser: (text) =>
+      PROBE_PROMPT.buildUserPrompt({
+        rawDump: text,
+        questions: [{ text: '示例题目' }],
+        messages: [],
+        round: 0,
       }),
   },
 ];

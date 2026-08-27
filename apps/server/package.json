@@ -16,6 +16,8 @@
     "remerge": "tsx src/commands/remerge.ts",
     "rescreen": "tsx src/commands/rescreen.ts",
     "import:excel": "tsx src/commands/import-excel.ts",
+    "import:yuque": "tsx src/commands/import-yuque.ts",
+    "backfill:question-companies": "tsx src/commands/backfill-question-companies.ts",
     "mail:set-credentials": "tsx src/commands/set-mail-credentials.ts"
   },
   "dependencies": {

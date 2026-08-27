@@ -1,4 +1,6 @@
 import type {
+  Company,
+  ConfirmImportCandidateInput,
   FinalizeDebriefInput,
   ImportCandidate,
   InterviewNote,
@@ -61,6 +63,14 @@ export async function finalizeDebrief(input: FinalizeDebriefInput): Promise<{
   }>;
 }
 
+export async function fetchQuestionCompanies(): Promise<Company[]> {
+  const response = await fetch(`${API_BASE}/questions/companies`);
+  if (!response.ok) {
+    throw new Error('加载有题目的公司列表失败');
+  }
+  return response.json() as Promise<Company[]>;
+}
+
 export async function fetchQuestions(
   filter: QuestionFilter = {},
 ): Promise<Question[]> {
@@ -103,9 +113,14 @@ export async function fetchImportCandidates(): Promise<ImportCandidate[]> {
   return response.json() as Promise<ImportCandidate[]>;
 }
 
-export async function confirmImportCandidate(id: string): Promise<Question> {
+export async function confirmImportCandidate(
+  id: string,
+  input: ConfirmImportCandidateInput = {},
+): Promise<Question> {
   const response = await fetch(`${API_BASE}/import-candidates/${id}/confirm`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   });
   if (!response.ok) {
     throw new Error('确认导入失败');
@@ -123,6 +138,7 @@ export async function rejectImportCandidate(id: string): Promise<void> {
 }
 
 export type {
+  ConfirmImportCandidateInput,
   FinalizeDebriefInput,
   ImportCandidate,
   InterviewNote,

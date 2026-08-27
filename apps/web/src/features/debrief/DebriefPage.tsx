@@ -17,6 +17,52 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 
+function mergeQuestionUpdates(
+  current: StructuredQuestion[],
+  updates: StructuredQuestion[] | undefined,
+): StructuredQuestion[] {
+  if (!updates?.length) {
+    return current;
+  }
+  if (updates.length !== current.length) {
+    return updates.every((item) => item.text?.trim())
+      ? updates
+      : current.map((item, index) => ({
+          ...item,
+          ...updates[index],
+          text: updates[index]?.text?.trim() ? updates[index].text : item.text,
+        }));
+  }
+  return current.map((item, index) => {
+    const update = updates[index];
+    if (!update) {
+      return item;
+    }
+    return {
+      ...item,
+      ...update,
+      text: update.text?.trim() ? update.text : item.text,
+    };
+  });
+}
+
+function getSaveBlockReason(input: {
+  questions: StructuredQuestion[];
+  applicationId: string;
+  rawDump: string;
+}): string | null {
+  if (input.questions.length === 0) {
+    return '结构化结果已丢失，请重新点击「结构化」。';
+  }
+  if (!input.applicationId) {
+    return '请先选择关联投递，再保存到题库。';
+  }
+  if (!input.rawDump.trim()) {
+    return '原始文本为空，请重新粘贴后再保存。';
+  }
+  return null;
+}
+
 export function DebriefPage() {
   const queryClient = useQueryClient();
   const [applicationId, setApplicationId] = useState('');
@@ -25,6 +71,8 @@ export function DebriefPage() {
   const [summary, setSummary] = useState<string | undefined>();
   const [probeMessages, setProbeMessages] = useState<ProbeMessage[]>([]);
   const [probeRound, setProbeRound] = useState(0);
+  const [probeFinished, setProbeFinished] = useState(false);
+  const [probeError, setProbeError] = useState(false);
   const [probeInput, setProbeInput] = useState('');
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
@@ -51,24 +99,36 @@ export function DebriefPage() {
       setSummary(result.summary);
       setProbeMessages([]);
       setProbeRound(0);
+      setProbeFinished(false);
+      setProbeError(false);
       setSavedMessage(null);
 
       const needsProbe = result.questions.some(
         (item) => !item.myAnswer && !item.weakPoint,
       );
       if (needsProbe && applicationId) {
-        const probe = await probeDebrief({
-          rawDump,
-          questions: result.questions,
-          messages: [],
-          round: 0,
-        });
-        if (probe.shouldContinue && probe.reply) {
-          setProbeMessages([{ role: 'assistant', content: probe.reply }]);
-          setProbeRound(1);
-        }
-        if (probe.updatedQuestions) {
-          setQuestions(probe.updatedQuestions);
+        try {
+          const probe = await probeDebrief({
+            rawDump,
+            questions: result.questions,
+            messages: [],
+            round: 0,
+          });
+          if (probe.updatedQuestions) {
+            setQuestions((current) =>
+              mergeQuestionUpdates(result.questions, probe.updatedQuestions),
+            );
+          }
+          if (probe.shouldContinue && probe.reply) {
+            setProbeMessages([{ role: 'assistant', content: probe.reply }]);
+            setProbeRound(1);
+            setProbeFinished(false);
+          } else {
+            setProbeFinished(true);
+          }
+        } catch {
+          setProbeError(true);
+          setProbeFinished(true);
         }
       }
     },
@@ -77,8 +137,11 @@ export function DebriefPage() {
   const probeMutation = useMutation({
     mutationFn: probeDebrief,
     onSuccess: (result) => {
+      setProbeError(false);
       if (result.updatedQuestions) {
-        setQuestions(result.updatedQuestions);
+        setQuestions((current) =>
+          mergeQuestionUpdates(current, result.updatedQuestions),
+        );
       }
       if (result.shouldContinue && result.reply) {
         setProbeMessages((current) => [
@@ -86,7 +149,15 @@ export function DebriefPage() {
           { role: 'assistant', content: result.reply },
         ]);
         setProbeRound((current) => current + 1);
+        setProbeFinished(false);
+      } else {
+        setProbeFinished(true);
       }
+      setProbeInput('');
+    },
+    onError: () => {
+      setProbeError(true);
+      setProbeFinished(true);
       setProbeInput('');
     },
   });
@@ -102,7 +173,22 @@ export function DebriefPage() {
       setQuestions([]);
       setProbeMessages([]);
       setProbeRound(0);
+      setProbeFinished(false);
+      setProbeError(false);
     },
+  });
+
+  const awaitingUserReply =
+    !probeFinished &&
+    probeRound < 3 &&
+    probeMessages[probeMessages.length - 1]?.role === 'assistant';
+
+  const canSave =
+    questions.length > 0 && Boolean(applicationId) && Boolean(rawDump.trim());
+  const saveBlockReason = getSaveBlockReason({
+    questions,
+    applicationId,
+    rawDump,
   });
 
   async function handleStructure() {
@@ -230,7 +316,7 @@ export function DebriefPage() {
             ))}
             <Button
               onClick={() => void handleFinalize()}
-              disabled={finalizeMutation.isPending}
+              disabled={finalizeMutation.isPending || !canSave}
             >
               {finalizeMutation.isPending ? '保存中…' : '保存到题库'}
             </Button>
@@ -238,28 +324,57 @@ export function DebriefPage() {
         </Card>
       ) : null}
 
-      {probeMessages.length > 0 ? (
+      {probeMessages.length > 0 || probeFinished || probeError ? (
         <Card>
           <CardHeader>
-            <CardTitle>克制追问（第 {probeRound}/3 轮）</CardTitle>
+            <CardTitle>
+              {probeFinished
+                ? '追问已结束'
+                : `克制追问（第 ${probeRound}/3 轮）`}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              {probeMessages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={`rounded-lg p-3 text-sm ${
-                    message.role === 'assistant'
-                      ? 'bg-muted'
-                      : 'border'
-                  }`}
-                >
-                  {message.content}
-                </div>
-              ))}
-            </div>
-            {probeRound < 3 &&
-            probeMessages[probeMessages.length - 1]?.role === 'assistant' ? (
+            {probeMessages.length > 0 ? (
+              <div className="space-y-2">
+                {probeMessages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`rounded-lg p-3 text-sm ${
+                      message.role === 'assistant' ? 'bg-muted' : 'border'
+                    }`}
+                  >
+                    {message.content}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {probeMutation.isPending ? (
+              <p className="text-sm text-muted-foreground">正在处理你的回复…</p>
+            ) : null}
+            {probeError ? (
+              <p className="text-sm text-destructive">
+                {canSave
+                  ? '追问请求失败，可以直接保存到题库，或稍后重试。'
+                  : '追问请求失败。'}
+              </p>
+            ) : null}
+            {probeFinished && !probeError ? (
+              <p className="text-sm text-muted-foreground">
+                信息已足够，可以保存到题库。
+              </p>
+            ) : null}
+            {canSave && (probeFinished || probeError) ? (
+              <Button
+                onClick={() => void handleFinalize()}
+                disabled={finalizeMutation.isPending}
+              >
+                {finalizeMutation.isPending ? '保存中…' : '保存到题库'}
+              </Button>
+            ) : null}
+            {probeError && saveBlockReason ? (
+              <p className="text-sm text-muted-foreground">{saveBlockReason}</p>
+            ) : null}
+            {awaitingUserReply && !probeMutation.isPending ? (
               <>
                 <textarea
                   className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
